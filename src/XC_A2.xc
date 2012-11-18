@@ -80,6 +80,7 @@ void visualiser(chanend toButtons, chanend show[], chanend toQuadrant[], out por
 
 	while (running) {
 		for (int k=0;k<noParticles;k++) {
+
 			select {
 				case show[k] :> j:
 					if (j<12)
@@ -150,14 +151,28 @@ void particle(chanend left, chanend right, chanend toVisualiser, int startPositi
 	// ADD YOUR CODE HERE TO SIMULATE PARTICLE BEHAVIOUR
 	// ///////////////////////////////////////////////////////////////////////
 	while(running) {
-		toVisualiser <: startPosition;
-	}
+		toVisualiser <: position;
+
+
+		if(currentDirection == CLKWISE)
+			position++;
+		else
+			position--;
+
+		if(position == 12) position = 0;
+		else if(position == -1) position = 11;
+
+
+
 
 	//the next attempted position after considering move direction
 	//the current direction the particle is moving
 	//the verdict of the left neighbour if move is allowed
 	//the verdict of the right neighbour if move is allowed
-	//the current particle velocity
+		//the current particle velocity
+		waitMoment(50000000);
+
+	}
 }
 
 //MAIN PROCESS defining channels, orchestrating and starting the threads
@@ -174,10 +189,6 @@ int main(void) {
 
 	//channel to link buttons and visualiser
 	chan show[noParticles];
-
-
-
-
 
 	//MAIN PROCESS HARNESS
 	par{
