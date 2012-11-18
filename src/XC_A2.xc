@@ -146,13 +146,11 @@ void particle(chanend left, chanend right, chanend toVisualiser, int startPositi
 
 	int running = 1;
 
-	printf("ELO SIA %d", startPosition);
 	/////////////////////////////////////////////////////////////////////// //
 	// ADD YOUR CODE HERE TO SIMULATE PARTICLE BEHAVIOUR
 	// ///////////////////////////////////////////////////////////////////////
 	while(running) {
-		printf("ELO SIA %d", startPosition);
-		toVisualiser :> startPosition;
+		toVisualiser <: startPosition;
 	}
 
 	//the next attempted position after considering move direction
@@ -176,6 +174,8 @@ int main(void) {
 
 	//channel to link buttons and visualiser
 	chan show[noParticles];
+
+
 
 
 
