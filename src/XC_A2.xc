@@ -153,22 +153,32 @@ void particle(chanend left, chanend right, chanend toVisualiser, int startPositi
 	while(running) {
 		toVisualiser <: position;
 
-
+		// Choose new attempted position based on current direction
 		if(currentDirection == CLKWISE)
-			position++;
+			attemptedPosition = position + 1;
 		else
-			position--;
+			attemptedPosition = position - 1;
 
-		if(position == 12) position = 0;
-		else if(position == -1) position = 11;
+		// Go in circle
+		if(attemptedPosition == 12) attemptedPosition = 0;
+		else if(attemptedPosition == -1) attemptedPosition = 11;
 
 
+		select {
+			case left <: position:
+				break;
+			case right :> leftMoveForbidden:
+				break;
+			default:
+				break;
+		}
+		//the verdict of the left neighbour if move is allowed
+
+		// Check where is left and right
 
 
-	//the next attempted position after considering move direction
-	//the current direction the particle is moving
-	//the verdict of the left neighbour if move is allowed
-	//the verdict of the right neighbour if move is allowed
+		//the verdict of the right neighbour if move is allowed
+
 		//the current particle velocity
 		waitMoment(50000000);
 
