@@ -126,6 +126,13 @@ void buttonListener(in port buttons, chanend toVisualiser) {
 	}
 }
 
+
+// Change current position to an opposite one
+void togglePosition(int& position) {
+	if(position == CLKWISE) position = ACLKWISE;
+	else position = CLKWISE;
+}
+
 //PARTICLE...thread to represent a particle - to be replicated noParticle-times
 void particle(chanend left, chanend right, chanend toVisualiser, int startPosition, int startDirection) {
 
@@ -151,6 +158,10 @@ void particle(chanend left, chanend right, chanend toVisualiser, int startPositi
 	// ADD YOUR CODE HERE TO SIMULATE PARTICLE BEHAVIOUR
 	// ///////////////////////////////////////////////////////////////////////
 	while(running) {
+
+		int wasAsked = 1;
+
+		printf("%d is now at position: %d\n",startPosition, position);
 		toVisualiser <: position;
 
 		// Choose new attempted position based on current direction
@@ -163,24 +174,98 @@ void particle(chanend left, chanend right, chanend toVisualiser, int startPositi
 		if(attemptedPosition == 12) attemptedPosition = 0;
 		else if(attemptedPosition == -1) attemptedPosition = 11;
 
-
-		select {
-			case left <: position:
+		while(wasAsked) {
+			// See if left or right asks something
+			select {
+				case right :> rightMoveForbidden:
+					//printf("%d: Was asked from right\n", startPosition);
+					if(rightMoveForbidden == position) {
+						right <: 1;
+						printf("%d Rejected move to: %d\n",startPosition, rightMoveForbidden);
+					} else {
+						right <: 0;
+						printf("%d Allowed move to: %d\n",startPosition, rightMoveForbidden);
+					}
+					wasAsked = 1;
+					break;
+				case left :> leftMoveForbidden:
+					//printf("%d: Was asked from left\n", startPosition);
+					if(leftMoveForbidden == position) {
+						left <: 1;
+						printf("%d Rejected move to: %d\n",startPosition, leftMoveForbidden);
+					} else {
+						left <: 0;
+						printf("%d Allowed move to: %d\n",startPosition, leftMoveForbidden);
+					}
+					wasAsked = 1;
 				break;
-			case right :> leftMoveForbidden:
-				break;
-			default:
-				break;
+				default:
+					wasAsked = 0;
+					break;
+			}
 		}
+
+		// If nothing asking, go and ask yourself
+		if(currentDirection == ACLKWISE) {
+
+			int gotResponse = 1;
+
+			//printf("%d: Asking right\n", startPosition);
+			right <: attemptedPosition;
+
+			while(gotResponse) {
+				select {
+					case right :> rightMoveForbidden:
+						//printf("%d: Got response from my right\n", startPosition);
+						gotResponse = 0;
+						break;
+					default:
+						break;
+				}
+			}
+
+			if(rightMoveForbidden == 0) {
+				position = attemptedPosition;
+				printf("%d Moving to: %d\n",startPosition, attemptedPosition);
+			}
+			else
+				togglePosition(currentDirection);
+
+		} else if(currentDirection == CLKWISE) {
+
+			int gotResponse = 1;
+
+			//printf("%d: Asking left\n", startPosition);
+			left <: attemptedPosition;
+
+			while(gotResponse) {
+				select {
+					case left :> leftMoveForbidden:
+						//printf("%d: Got response from my left\n", startPosition);
+						gotResponse = 0;
+						break;
+					default:
+						//waitMoment(10000);
+						break;
+				}
+			}
+
+			if(!leftMoveForbidden) {
+				printf("%d Moving to: %d\n",startPosition, attemptedPosition);
+				position = attemptedPosition;
+			}
+			else
+				togglePosition(currentDirection);
+		}
+
+
+
 		//the verdict of the left neighbour if move is allowed
-
-		// Check where is left and right
-
 
 		//the verdict of the right neighbour if move is allowed
 
 		//the current particle velocity
-		waitMoment(50000000);
+		//waitMoment(50000000);
 
 	}
 }
