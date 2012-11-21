@@ -18,6 +18,8 @@ out port speaker = PORT_SPEAKER;
 #define CLKWISE 1
 #define ACLKWISE -1
 
+#define CHANGEDIR 1023
+
 // Start position of n'th particle
 const int startPosition[noParticles] = {0, 3, 6};
 
@@ -103,6 +105,7 @@ void visualiser(chanend toButtons, chanend show[], chanend toQuadrant[], out por
 					j += (16<<(display[k]%3))*(display[k]/3==i);
 				toQuadrant[i] <: j;
 			}
+			waitMoment(5000000);
 		}
 	}
 }
@@ -161,7 +164,7 @@ void particle(chanend left, chanend right, chanend toVisualiser, int startPositi
 
 		int wasAsked = 1;
 
-		printf("%d is now at position: %d\n",startPosition, position);
+		//printf("%d is now at position: %d\n",startPosition, position);
 		toVisualiser <: position;
 
 		// Choose new attempted position based on current direction
@@ -181,10 +184,10 @@ void particle(chanend left, chanend right, chanend toVisualiser, int startPositi
 					//printf("%d: Was asked from right\n", startPosition);
 					if(rightMoveForbidden == position) {
 						right <: 1;
-						printf("%d Rejected move to: %d\n",startPosition, rightMoveForbidden);
+						//printf("%d Rejected move to: %d\n",startPosition, rightMoveForbidden);
 					} else {
 						right <: 0;
-						printf("%d Allowed move to: %d\n",startPosition, rightMoveForbidden);
+						//printf("%d Allowed move to: %d\n",startPosition, rightMoveForbidden);
 					}
 					wasAsked = 1;
 					break;
@@ -192,10 +195,10 @@ void particle(chanend left, chanend right, chanend toVisualiser, int startPositi
 					//printf("%d: Was asked from left\n", startPosition);
 					if(leftMoveForbidden == position) {
 						left <: 1;
-						printf("%d Rejected move to: %d\n",startPosition, leftMoveForbidden);
+						//printf("%d Rejected move to: %d\n",startPosition, leftMoveForbidden);
 					} else {
 						left <: 0;
-						printf("%d Allowed move to: %d\n",startPosition, leftMoveForbidden);
+						//printf("%d Allowed move to: %d\n",startPosition, leftMoveForbidden);
 					}
 					wasAsked = 1;
 				break;
@@ -226,7 +229,7 @@ void particle(chanend left, chanend right, chanend toVisualiser, int startPositi
 
 			if(rightMoveForbidden == 0) {
 				position = attemptedPosition;
-				printf("%d Moving to: %d\n",startPosition, attemptedPosition);
+				//printf("%d Moving to: %d\n",startPosition, attemptedPosition);
 			}
 			else
 				togglePosition(currentDirection);
@@ -251,7 +254,7 @@ void particle(chanend left, chanend right, chanend toVisualiser, int startPositi
 			}
 
 			if(!leftMoveForbidden) {
-				printf("%d Moving to: %d\n",startPosition, attemptedPosition);
+				//printf("%d Moving to: %d\n",startPosition, attemptedPosition);
 				position = attemptedPosition;
 			}
 			else
