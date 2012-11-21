@@ -15,10 +15,19 @@ out port speaker = PORT_SPEAKER;
 //overall number of particles threads in the system
 #define noParticles 3
 
+// define move forbidden/allowed - make code more readible
+#define forbidden 1
+#define allowed 0
+
+// true/false
+#define true 1
+#define false 0
+
 #define CLKWISE 1
 #define ACLKWISE -1
 
-#define CHANGEDIR 1023
+// No of cores
+#define maxCoreNo 3
 
 // Start position of n'th particle
 const int startPosition[noParticles] = {0, 3, 6};
@@ -72,15 +81,19 @@ void waitMoment(uint myTime) {
 void visualiser(chanend toButtons, chanend show[], chanend toQuadrant[], out port speaker) {
 
 	//array of ant positions to be displayed, all values 0..11
-	unsigned int running = 1;
 	unsigned int display[noParticles];
 
 	//helper variable to determine system shutdown
-	int j; //helper variable
+	unsigned int running = true;
 
+	//helper variable
+	int j;
+
+	// Flash red leds
 	cledR <: 1;
 
 	while (running) {
+		waitMoment(30000000);
 		for (int k=0;k<noParticles;k++) {
 
 			select {
@@ -129,10 +142,26 @@ void buttonListener(in port buttons, chanend toVisualiser) {
 }
 
 
-// Change current position to an opposite one
-void togglePosition(int& position) {
-	if(position == CLKWISE) position = ACLKWISE;
-	else position = CLKWISE;
+// Change current direction to an opposite one
+void toggleDirection(int& direction) {
+	if(direction == CLKWISE) direction = ACLKWISE;
+	else direction = CLKWISE;
+}
+
+int getAttemptedPosition(int direction, int position) {
+
+	int attemptedPosition;
+	// Choose new attempted position based on current direction
+	if(direction == CLKWISE)
+		attemptedPosition = position + 1;
+	else
+		attemptedPosition = position - 1;
+
+	// Go in circle
+	if(attemptedPosition == 12) attemptedPosition = 0;
+	else if(attemptedPosition == -1) attemptedPosition = 11;
+
+	return attemptedPosition;
 }
 
 //PARTICLE...thread to represent a particle - to be replicated noParticle-times
@@ -161,100 +190,99 @@ void particle(chanend left, chanend right, chanend toVisualiser, int startPositi
 	// ///////////////////////////////////////////////////////////////////////
 	while(running) {
 
-		int wasAsked = 1;
+		// Assume the particle was requested position check
+		int wasAsked = true;
 
 		//printf("%d is now at position: %d\n",startPosition, position);
 		toVisualiser <: position;
 
-		//waitMoment(8000000);
-
-
-		// Choose new attempted position based on current direction
-		if(currentDirection == CLKWISE)
-			attemptedPosition = position + 1;
-		else
-			attemptedPosition = position - 1;
-
-		// Go in circle
-		if(attemptedPosition == 12) attemptedPosition = 0;
-		else if(attemptedPosition == -1) attemptedPosition = 11;
-
+		// Respond to position check requests
 		while(wasAsked) {
 			// See if left or right asks something
 			select {
 				case right :> rightMoveForbidden:
 					//printf("%d: Was asked from right\n", startPosition);
 					if(rightMoveForbidden == position) {
-						right <: 1;
-						togglePosition(currentDirection);
-						wasAsked = 0;
+						// Position taken
+						right <: forbidden;
+						//Now we have to change direction - collision detected
+						toggleDirection(currentDirection);
+						wasAsked = false;
 						//printf("%d Rejected move to: %d\n",startPosition, rightMoveForbidden);
 					} else {
-						right <: 0;
+						right <: allowed;
 						//printf("%d Allowed move to: %d\n",startPosition, rightMoveForbidden);
 					}
-					wasAsked = 1;
+					wasAsked = true;
 					break;
 				case left :> leftMoveForbidden:
 					//printf("%d: Was asked from left\n", startPosition);
 					if(leftMoveForbidden == position) {
-						left <: 1;
-						togglePosition(currentDirection);
-						wasAsked = 0;
+						// Position taken, don't allow to move
+						left <: forbidden;
+						//Now we have to change direction - collision detected
+						toggleDirection(currentDirection);
+						// Now your turn
+						wasAsked = false;
 						//printf("%d Rejected move to: %d\n",startPosition, leftMoveForbidden);
 					} else {
-						left <: 0;
+						left <: allowed;
 						//printf("%d Allowed move to: %d\n",startPosition, leftMoveForbidden);
 					}
-					wasAsked = 1;
+					wasAsked = true;
 				break;
 				default:
-					wasAsked = 0;
+					// No one wanted anything
+					wasAsked = false;
 					break;
 			}
 		}
 
-		// If nothing asking, go and ask yourself
+		// Choose new attempted position based on current direction
+		attemptedPosition = getAttemptedPosition(currentDirection, position);
+
+		// If nothing asking, go and ask
 		if(currentDirection == ACLKWISE) {
 
-			int gotResponse = 1;
+			int noReply = true;
 
 			//printf("%d: Asking right\n", startPosition);
 			right <: attemptedPosition;
 
-			while(gotResponse) {
+			while(noReply) {
 				select {
 					case right :> rightMoveForbidden:
 						//printf("%d: Got response from my right\n", startPosition);
-						gotResponse = 0;
+						// Yay! Got response!
+						noReply = false;
 						break;
 					default:
+						// Wait for reply
 						break;
 				}
 			}
 
-			if(rightMoveForbidden == 0) {
+			if(rightMoveForbidden == allowed) {
 				position = attemptedPosition;
 				//printf("%d Moving to: %d\n",startPosition, attemptedPosition);
 			}
 			else {
-				togglePosition(currentDirection);
-				//right <: CHANGEDIR;
-
+				// if move not allowed -> collision
+				toggleDirection(currentDirection);
 			}
 
 		} else if(currentDirection == CLKWISE) {
 
-			int gotResponse = 1;
+			int noReply = true;
 
 			//printf("%d: Asking left\n", startPosition);
 			left <: attemptedPosition;
 
-			while(gotResponse) {
+			while(noReply) {
 				select {
 					case left :> leftMoveForbidden:
 						//printf("%d: Got response from my left\n", startPosition);
-						gotResponse = 0;
+						noReply = false;
 						break;
 					default:
 						//waitMoment(10000);
@@ -262,13 +290,12 @@ void particle(chanend left, chanend right, chanend toVisualiser, int startPositi
 				}
 			}
 
-			if(!leftMoveForbidden) {
+			if(leftMoveForbidden == allowed) {
 				//printf("%d Moving to: %d\n",startPosition, attemptedPosition);
 				position = attemptedPosition;
 			}
 			else {
-				togglePosition(currentDirection);
-				//left <: CHANGEDIR;
+				toggleDirection(currentDirection);
 			}
 		}
 
@@ -279,7 +306,7 @@ void particle(chanend left, chanend right, chanend toVisualiser, int startPositi
 		//the verdict of the right neighbour if move is allowed
 
 		//the current particle velocity
-		waitMoment(10000000);
+		//waitMoment(1000);
 
 	}
 }
@@ -304,13 +331,10 @@ int main(void) {
 		//BUTTON LISTENER THREAD
 		on stdcore[0]: buttonListener(buttons,buttonToVisualiser);
 
-		/////////////////////////////////////////////////////////////////////// //
-		// ADD YOUR CODE HERE TO REPLICATE PARTICLE THREADS particle(...)
-		// ///////////////////////////////////////////////////////////////////////
 		par(int i = 0; i < noParticles; i++) {
 
-			on stdcore[i % 3] : particle(neighbours[(i==0) ? noParticles - 1 : i - 1],
-					neighbours[(i == noParticles - 1) ? 0 : i + 1],
+			on stdcore[i % maxCoreNo] : particle(neighbours[(i==0) ? noParticles - 1 : i - 1],
+					neighbours[(i == (noParticles - 1)) ? 0 : i + 1],
 					show[i], startPosition[i], startDirection[i]);
 		}
 
