@@ -105,7 +105,6 @@ void visualiser(chanend toButtons, chanend show[], chanend toQuadrant[], out por
 					j += (16<<(display[k]%3))*(display[k]/3==i);
 				toQuadrant[i] <: j;
 			}
-			waitMoment(5000000);
 		}
 	}
 }
@@ -167,6 +166,9 @@ void particle(chanend left, chanend right, chanend toVisualiser, int startPositi
 		//printf("%d is now at position: %d\n",startPosition, position);
 		toVisualiser <: position;
 
+		//waitMoment(8000000);
+
+
 		// Choose new attempted position based on current direction
 		if(currentDirection == CLKWISE)
 			attemptedPosition = position + 1;
@@ -184,6 +186,8 @@ void particle(chanend left, chanend right, chanend toVisualiser, int startPositi
 					//printf("%d: Was asked from right\n", startPosition);
 					if(rightMoveForbidden == position) {
 						right <: 1;
+						togglePosition(currentDirection);
+						wasAsked = 0;
 						//printf("%d Rejected move to: %d\n",startPosition, rightMoveForbidden);
 					} else {
 						right <: 0;
@@ -195,6 +199,8 @@ void particle(chanend left, chanend right, chanend toVisualiser, int startPositi
 					//printf("%d: Was asked from left\n", startPosition);
 					if(leftMoveForbidden == position) {
 						left <: 1;
+						togglePosition(currentDirection);
+						wasAsked = 0;
 						//printf("%d Rejected move to: %d\n",startPosition, leftMoveForbidden);
 					} else {
 						left <: 0;
@@ -231,8 +237,11 @@ void particle(chanend left, chanend right, chanend toVisualiser, int startPositi
 				position = attemptedPosition;
 				//printf("%d Moving to: %d\n",startPosition, attemptedPosition);
 			}
-			else
+			else {
 				togglePosition(currentDirection);
+				//right <: CHANGEDIR;
+
+			}
 
 		} else if(currentDirection == CLKWISE) {
 
@@ -257,8 +266,10 @@ void particle(chanend left, chanend right, chanend toVisualiser, int startPositi
 				//printf("%d Moving to: %d\n",startPosition, attemptedPosition);
 				position = attemptedPosition;
 			}
-			else
+			else {
 				togglePosition(currentDirection);
+				//left <: CHANGEDIR;
+			}
 		}
 
 
@@ -268,7 +279,7 @@ void particle(chanend left, chanend right, chanend toVisualiser, int startPositi
 		//the verdict of the right neighbour if move is allowed
 
 		//the current particle velocity
-		//waitMoment(50000000);
+		waitMoment(10000000);
 
 	}
 }
