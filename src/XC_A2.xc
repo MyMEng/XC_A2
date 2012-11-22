@@ -41,6 +41,13 @@ const int startDirection[noParticles] = {ACLKWISE, CLKWISE, ACLKWISE};
 #define buttonC 11
 #define buttonD 7
 
+enum {
+	NOTSTARTED = 0,
+	RUNNING = 1,
+	PAUSED = 2,
+	TERMINATED = 4
+};
+
 //Particle speed setting
 #define PARTICLESPEED 5500000
 
@@ -103,12 +110,52 @@ void visualiser(chanend toButtons, chanend show[], chanend toQuadrant[], out por
 	//helper variable
 	int j;
 
+	// Input from buttons
+	int input = 0;
+
+	// Is simulation paused?
+	int isPaused = false;
+
+	// Has simulation started?
+	int started = false;
+
 	// Flash red leds
 	cledR <: 1;
 
+	input = 0;
 	while (running) {
 		waitMoment(PARTICLESPEED);
+
+		// Check if buttons were pressed
+		select {
+			case toButtons :> input:
+				break;
+			default:
+				break;
+		}
+
+
+		if(input == RUNNING && (!started || isPaused)) {
+			for(int k=0; k<noParticles; k++) {
+				show[k] <: RUNNING;
+			}
+			started = true;
+			isPaused = false;
+		}
+
+		if(input == PAUSED) {
+			for(int k=0; k<noParticles; k++) {
+				show[k] <: PAUSED;
+			}
+			isPaused = true;
+		}
+
 		for (int k=0;k<noParticles;k++) {
+
+			if(input == TERMINATED) {
+				show[k] <: TERMINATED;
+				break;
+			}
 
 			select {
 				case show[k] :> j:
@@ -124,6 +171,7 @@ void visualiser(chanend toButtons, chanend show[], chanend toQuadrant[], out por
 				default:
 					break;
 			}
+
 
 			//visualise particles
 			for (int i=0;i<4;i++) {
@@ -168,6 +216,7 @@ void buttonListener(in port buttons, chanend toVisualiser) {
 					waitMoment(1);
 				else {
 					simulationStarted = true;
+					toVisualiser <: RUNNING;
 					waitMoment(1);
 					//START SIMULATION
 				}
@@ -176,6 +225,11 @@ void buttonListener(in port buttons, chanend toVisualiser) {
 				if(simulationStarted) {
 					waitMoment(1);
 					simulationPaused = !simulationPaused;
+					if(simulationPaused == true) {
+						toVisualiser <: RUNNING;
+					} else {
+						toVisualiser <: PAUSED;
+					}
 					//PAUSE & RESUME
 				} else
 					waitMoment(1);
@@ -185,6 +239,7 @@ void buttonListener(in port buttons, chanend toVisualiser) {
 				if(simulationStarted) {
 					waitMoment(1);
 					simulationStarted = false;
+					toVisualiser <: TERMINATED;
 					//HALT
 				} else
 					waitMoment(1);
@@ -248,18 +303,48 @@ void particle(chanend left, chanend right, chanend toVisualiser, int startPositi
 
 	int currentVelocity = 1;
 
-	int running = 1;
+	int running = true;
+	int started = false;
+	int paused = false;
+
+	int status = 0;
 
 	/////////////////////////////////////////////////////////////////////// //
 	// ADD YOUR CODE HERE TO SIMULATE PARTICLE BEHAVIOUR
 	// ///////////////////////////////////////////////////////////////////////
 	while(running) {
-
 		// Assume the particle was requested position check
 		int wasAsked = true;
 
+		status = 0;
+
+		// Check any state change for the simulation
+		select {
+			case toVisualiser :> status:
+				break;
+			default:
+				break;
+		}
+
+		if(status == RUNNING) {
+			printf("Starting or resuming\n");
+			started = true;
+			paused = false;
+		} else if(status == PAUSED) {
+			printf("Pausing!\n");
+			paused = true;
+		} else if(status == TERMINATED) {
+			printf("Going to terminate\n");
+			running = false;
+			started = false;
+			continue;
+		}
+
 		//printf("%d is now at position: %d\n",startPosition, position);
 		toVisualiser <: position;
+
+		if(paused || !started)
+			continue;
 
 		// Respond to position check requests
 		while(wasAsked) {
@@ -374,6 +459,7 @@ void particle(chanend left, chanend right, chanend toVisualiser, int startPositi
 		//waitMoment(1000);
 
 	}
+	printf("Particle terminates...\n");
 }
 
 //MAIN PROCESS defining channels, orchestrating and starting the threads
