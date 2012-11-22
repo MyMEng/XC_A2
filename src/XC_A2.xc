@@ -35,6 +35,20 @@ const int startPosition[noParticles] = {0, 3, 6};
 // Start directions of n'th  particles
 const int startDirection[noParticles] = {ACLKWISE, CLKWISE, ACLKWISE};
 
+//numbers that function pinsneq returns that correspond to buttons
+#define buttonA 14
+#define buttonB 13
+#define buttonC 11
+#define buttonD 7
+
+//Particle speed setting
+#define PARTICLESPEED 5500000
+
+// Define bool, true and false
+//typedef unsigned int bool;
+//#define true 1
+//#define false 0
+
 ///////////////////////////////////////////////////////////////////////////////////////// //
 // Helper Functions provided for you
 // /////////////////////////////////////////////////////////////////////////////////////////
@@ -93,7 +107,7 @@ void visualiser(chanend toButtons, chanend show[], chanend toQuadrant[], out por
 	cledR <: 1;
 
 	while (running) {
-		waitMoment(30000000);
+		waitMoment(PARTICLESPEED);
 		for (int k=0;k<noParticles;k++) {
 
 			select {
@@ -128,6 +142,15 @@ void buttonListener(in port buttons, chanend toVisualiser) {
 	//button pattern currently pressed
 	int buttonInput;
 
+	//Pause flag
+	int pause = false;
+
+	//Simulation ON / OFF
+	int simulationStarted = false;
+
+	//Simulation Paused / Resumed
+	int simulationPaused = false;
+
 	//helper variable to determine system shutdown
 	unsigned int running = 1;
 
@@ -138,6 +161,48 @@ void buttonListener(in port buttons, chanend toVisualiser) {
 		/////////////////////////////////////////////////////////////////////// //
 		// ADD YOUR CODE HERE TO ACT ON BUTTON INPUT
 		// ///////////////////////////////////////////////////////////////////////
+
+		switch(buttonInput){
+			case buttonA:
+				if(simulationStarted)
+					waitMoment(1);
+				else {
+					simulationStarted = true;
+					waitMoment(1);
+					//START SIMULATION
+				}
+				break;
+			case buttonB:
+				if(simulationStarted) {
+					waitMoment(1);
+					simulationPaused = !simulationPaused;
+					//PAUSE & RESUME
+				} else
+					waitMoment(1);
+					//
+				break;
+			case buttonC:
+				if(simulationStarted) {
+					waitMoment(1);
+					simulationStarted = false;
+					//HALT
+				} else
+					waitMoment(1);
+					//thing
+				break;
+			case buttonD:
+				if(simulationStarted)
+					waitMoment(1);
+					//Thing
+				else
+					waitMoment(1);
+					//BEFORE START - NUMBER OF PARTICLES
+				break;
+			default:
+				break;
+		}
+
+
 	}
 }
 
