@@ -128,34 +128,32 @@ void visualiser(chanend toButtons, chanend show[], chanend toQuadrant[], out por
 
 		// Check if buttons were pressed
 		select {
-			case toButtons :> input:
+			case toButtons :> input: {
+				printf("Got input: %d\n", input);
 				break;
-			default:
+			}
+			default: {
 				break;
+			}
 		}
 
-
 		if(input == RUNNING && (!started || isPaused)) {
+			// If paused or not started send particles start signal
 			for(int k=0; k<noParticles; k++) {
+				printf("Send Running\n");
 				show[k] <: RUNNING;
 			}
 			started = true;
 			isPaused = false;
 		}
-
-		if(input == PAUSED) {
+		else if(input == TERMINATED) {
 			for(int k=0; k<noParticles; k++) {
-				show[k] <: PAUSED;
+				show[k] <: TERMINATED;
 			}
-			isPaused = true;
+			started = false;
 		}
 
 		for (int k=0;k<noParticles;k++) {
-
-			if(input == TERMINATED) {
-				show[k] <: TERMINATED;
-				break;
-			}
 
 			select {
 				case show[k] :> j:
@@ -179,6 +177,18 @@ void visualiser(chanend toButtons, chanend show[], chanend toQuadrant[], out por
 				for (int k=0;k<noParticles;k++)
 					j += (16<<(display[k]%3))*(display[k]/3==i);
 				toQuadrant[i] <: j;
+			}
+
+			if(input == PAUSED) {
+				// Send particles pause signal
+				printf("Try sending pause\n");
+				// Read any unread input
+
+				//for(int k=0; k<noParticles; k++) {
+					printf("%d: Try sending pause\n", k);
+					show[k] <: PAUSED;
+				//}
+				isPaused = true;
 			}
 		}
 	}
@@ -213,37 +223,33 @@ void buttonListener(in port buttons, chanend toVisualiser) {
 		switch(buttonInput){
 			case buttonA:
 				if(simulationStarted)
-					waitMoment(1);
+					break;
 				else {
+					//START SIMULATION
 					simulationStarted = true;
 					toVisualiser <: RUNNING;
-					waitMoment(1);
-					//START SIMULATION
+					waitMoment(1000000);
 				}
 				break;
 			case buttonB:
+				//PAUSE & RESUME
 				if(simulationStarted) {
-					waitMoment(1);
+					waitMoment(1000000);
 					simulationPaused = !simulationPaused;
 					if(simulationPaused == true) {
 						toVisualiser <: RUNNING;
 					} else {
 						toVisualiser <: PAUSED;
 					}
-					//PAUSE & RESUME
-				} else
-					waitMoment(1);
-					//
+				}
 				break;
 			case buttonC:
 				if(simulationStarted) {
-					waitMoment(1);
 					simulationStarted = false;
 					toVisualiser <: TERMINATED;
+					waitMoment(1000000);
 					//HALT
-				} else
-					waitMoment(1);
-					//thing
+				}
 				break;
 			case buttonD:
 				if(simulationStarted)
@@ -309,6 +315,10 @@ void particle(chanend left, chanend right, chanend toVisualiser, int startPositi
 
 	int status = 0;
 
+	// Display start position
+	toVisualiser <: startPosition;
+
+
 	/////////////////////////////////////////////////////////////////////// //
 	// ADD YOUR CODE HERE TO SIMULATE PARTICLE BEHAVIOUR
 	// ///////////////////////////////////////////////////////////////////////
@@ -318,9 +328,13 @@ void particle(chanend left, chanend right, chanend toVisualiser, int startPositi
 
 		status = 0;
 
+		// Wait a moment for a possible input?
+		//waitMoment(1000);
+
 		// Check any state change for the simulation
 		select {
 			case toVisualiser :> status:
+				printf("Visualiser status changed: %d\n", status);
 				break;
 			default:
 				break;
@@ -340,11 +354,12 @@ void particle(chanend left, chanend right, chanend toVisualiser, int startPositi
 			continue;
 		}
 
-		//printf("%d is now at position: %d\n",startPosition, position);
-		toVisualiser <: position;
 
 		if(paused || !started)
 			continue;
+
+		printf("%d is now at position: %d\n",startPosition, position);
+
 
 		// Respond to position check requests
 		while(wasAsked) {
@@ -414,6 +429,7 @@ void particle(chanend left, chanend right, chanend toVisualiser, int startPositi
 
 			if(rightMoveForbidden == allowed) {
 				position = attemptedPosition;
+				toVisualiser <: position;
 				//printf("%d Moving to: %d\n",startPosition, attemptedPosition);
 			}
 			else {
@@ -443,6 +459,7 @@ void particle(chanend left, chanend right, chanend toVisualiser, int startPositi
 			if(leftMoveForbidden == allowed) {
 				//printf("%d Moving to: %d\n",startPosition, attemptedPosition);
 				position = attemptedPosition;
+				toVisualiser <: position;
 			}
 			else {
 				toggleDirection(currentDirection);
