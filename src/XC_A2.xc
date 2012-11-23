@@ -230,10 +230,11 @@ void buttonListener(in port buttons, chanend toVisualiser) {
 			case buttonB:
 				//PAUSE & RESUME
 				if(simulationStarted) {
-					simulationPaused = !simulationPaused;
 					if(simulationPaused) {
+						simulationPaused = false;
 						toVisualiser <: RUNNING;
 					} else {
+						simulationPaused = true;
 						toVisualiser <: PAUSED;
 					}
 					waitMoment(BUTTONDELAY);
@@ -338,14 +339,14 @@ void particle(chanend left, chanend right, chanend toVisualiser, int startPositi
 		}
 
 		if(status == RUNNING && (!started || paused)) {
-			printf("Starting or resuming\n");
+			//printf("Starting or resuming\n");
 			started = true;
 			paused = false;
 		} else if(status == PAUSED && !paused) {
-			printf("Pausing!\n");
+			//printf("Pausing!\n");
 			paused = true;
 		} else if(status == TERMINATED && started) {
-			printf("Going to terminate\n");
+			//printf("Going to terminate\n");
 			running = false;
 			started = false;
 			continue;
@@ -440,7 +441,7 @@ void particle(chanend left, chanend right, chanend toVisualiser, int startPositi
 
 			left <: attemptedPosition;
 
-//			printf("Going to wait for left\n");
+			//printf("Going to wait for left\n");
 			while(noReply) {
 				select {
 					case left :> leftMoveForbidden:
