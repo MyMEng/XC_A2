@@ -18,4 +18,4 @@
 
 # Bin folder
 bin/**
-.build_Debug/src/**
+.build_Debug/**
