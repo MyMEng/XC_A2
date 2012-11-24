@@ -42,10 +42,10 @@ const int startDirection[noParticles] = {ACLKWISE, CLKWISE, ACLKWISE};
 #define buttonD 7
 
 enum {
-	NOTSTARTED = 0,
-	RUNNING = 1,
-	PAUSED = 2,
-	TERMINATED = 4
+	NOTSTARTED = 16,
+	RUNNING = 32,
+	PAUSED = 64,
+	TERMINATED = 128
 };
 
 //Particle speed setting
@@ -53,11 +53,6 @@ enum {
 
 // Delay buttons so you can click on them a bit 'slower'
 #define BUTTONDELAY 16000000
-
-// Define bool, true and false
-//typedef unsigned int bool;
-//#define true 1
-//#define false 0
 
 ///////////////////////////////////////////////////////////////////////////////////////// //
 // Helper Functions provided for you
@@ -69,11 +64,17 @@ void showLED(out port p, chanend fromVisualiser) {
 	while (running) {
 		select {
 			case fromVisualiser :> lightUpPattern: //read LED pattern from visualiser process
+				if(lightUpPattern == TERMINATED) {
+					running = false;
+					p <: 0;
+					break;
+				}
 				p <: lightUpPattern; break;
 			default:
 				break;
 		}
 	}
+	printf("Terminate showLED\n");
 }
 
 //send pattern to LEDs
@@ -132,7 +133,7 @@ void visualiser(chanend toButtons, chanend show[], chanend toQuadrant[], out por
 		// Check if buttons were pressed
 		select {
 			case toButtons :> input: {
-				printf("Got input: %d\n", input);
+				//printf("Got input: %d\n", input);
 				break;
 			}
 			default: {
@@ -150,32 +151,44 @@ void visualiser(chanend toButtons, chanend show[], chanend toQuadrant[], out por
 			isPaused = false;
 		}
 		else if(input == TERMINATED) {
-			for(int k=0; k<noParticles; k++) {
-				show[k] <: TERMINATED;
-			}
-			started = false;
+			//for(int k=0; k<noParticles; k++) {
+			//	show[k] <: TERMINATED;
+			//}
+			//started = false;
+			running = false;
 		}
 
 
 		for (int k=0;k<noParticles;k++) {
-
 			select {
 				case show[k] :> j:
-					if (j<12)
+					if (j<12) {
 						display[k] = j;
-					else
+
+						if(input == TERMINATED) {
+							printf("if: Going to send terminated to: %d\n", k);
+							show[k] <: TERMINATED;
+						}
+					}
+					else if(j == 1000) {
 						// Update status
+						if(input == TERMINATED)
+							printf("else: Going to send terminated to: %d\n", k);
 						show[k] <: input;
+					}
 					break;
 				/////////////////////////////////////////////////////////////////////// //
 				// ADD YOUR CODE HERE TO ACT ON BUTTON INPUT
 				// ///////////////////////////////////////////////////////////////////////
 				default: {
+					if(input == TERMINATED) {
+						printf("default: Going to send terminated to: %d\n", k);
+						show[k] <: TERMINATED;
+					}
 					break;
 				}
 
 			}
-
 
 			//visualise particles
 			for (int i=0;i<4;i++) {
@@ -184,10 +197,12 @@ void visualiser(chanend toButtons, chanend show[], chanend toQuadrant[], out por
 					j += (16<<(display[k]%3))*(display[k]/3==i);
 				toQuadrant[i] <: j;
 			}
-
-
 		}
 	}
+	for(int i=0; i<4; i++) {
+		toQuadrant[i] <: TERMINATED;
+	}
+	printf("Terminate visualiser\n");
 }
 
 //READ BUTTONS and send commands to Visualiser
@@ -245,6 +260,7 @@ void buttonListener(in port buttons, chanend toVisualiser) {
 					simulationStarted = false;
 					toVisualiser <: TERMINATED;
 					waitMoment(BUTTONDELAY);
+					running = false;
 					//HALT
 				}
 				break;
@@ -260,6 +276,7 @@ void buttonListener(in port buttons, chanend toVisualiser) {
 				break;
 		}
 	}
+	printf("Terminate button listener\n");
 }
 
 
@@ -343,13 +360,13 @@ void particle(chanend left, chanend right, chanend toVisualiser, int startPositi
 			started = true;
 			paused = false;
 		} else if(status == PAUSED && !paused) {
-			//printf("Pausing!\n");
+			printf("Pausing!\n");
 			paused = true;
 		} else if(status == TERMINATED && started) {
 			//printf("Going to terminate\n");
 			running = false;
-			started = false;
-			continue;
+			//started = false;
+			//continue;
 		}
 
 		if(paused || !started)
@@ -391,13 +408,23 @@ void particle(chanend left, chanend right, chanend toVisualiser, int startPositi
 						//printf("%d Allowed move to: %d\n",startPosition, leftMoveForbidden);
 					}
 					wasAsked = true;
-				break;
+					break;
+				case toVisualiser :> status:
+					printf("Got status in loop 1: %d\n", status);
+					break;
 				default:
 					// No one wanted anything
 					wasAsked = false;
 					break;
 			}
+			if(status == TERMINATED) {
+				running = false;
+				wasAsked = false;
+			}
 		}
+
+		if(status == TERMINATED)
+			continue;
 
 		// Choose new attempted position based on current direction
 		attemptedPosition = getAttemptedPosition(currentDirection, position);
@@ -407,7 +434,7 @@ void particle(chanend left, chanend right, chanend toVisualiser, int startPositi
 
 			int noReply = true;
 
-			//printf("%d: Asking right\n", startPosition);
+			printf("%d: Asking right\n", startPosition);
 			right <: attemptedPosition;
 
 			//printf("Going to wait for right\n");
@@ -417,9 +444,18 @@ void particle(chanend left, chanend right, chanend toVisualiser, int startPositi
 					case right :> rightMoveForbidden:
 						noReply = false;
 						break;
+					case toVisualiser :> status:
+						printf("Got status in loop 1: %d\n", status);
+						break;
 					default:
 						// Wait for reply
 						break;
+				}
+
+				// Check for status update
+				if(status == TERMINATED) {
+					running = false;
+					noReply = false;
 				}
 			}
 
@@ -437,7 +473,7 @@ void particle(chanend left, chanend right, chanend toVisualiser, int startPositi
 
 			int noReply = true;
 
-			//printf("%d: Asking left\n", startPosition);
+			printf("%d: Asking left\n", startPosition);
 
 			left <: attemptedPosition;
 
@@ -448,9 +484,18 @@ void particle(chanend left, chanend right, chanend toVisualiser, int startPositi
 						//printf("%d: Got response from my left\n", startPosition);
 						noReply = false;
 						break;
+					case toVisualiser :> status:
+						printf("Got status in loop 1: %d\n", status);
+						break;
 					default:
 						//waitMoment(10000);
 						break;
+				}
+
+				// Check for status update
+				if(status == TERMINATED) {
+					running = false;
+					noReply = false;
 				}
 			}
 
