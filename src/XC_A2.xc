@@ -158,14 +158,19 @@ void visualiser(chanend toButtons, chanend show[], chanend toQuadrant[], out por
 
 
 		for (int k=0;k<noParticles;k++) {
-
+			int wasPauseSent = false;
 			select {
 				case show[k] :> j:
 					if (j<12)
 						display[k] = j;
-					else
+					else {
 						// Update status
-						show[k] <: input;
+						if(input == PAUSED) {
+							show[k] <: input;
+							wasPauseSent = true;
+							break;
+						}
+					}
 					break;
 				/////////////////////////////////////////////////////////////////////// //
 				// ADD YOUR CODE HERE TO ACT ON BUTTON INPUT
@@ -175,7 +180,8 @@ void visualiser(chanend toButtons, chanend show[], chanend toQuadrant[], out por
 				}
 
 			}
-
+			if(wasPauseSent)
+				break;
 
 			//visualise particles
 			for (int i=0;i<4;i++) {
@@ -343,7 +349,7 @@ void particle(chanend left, chanend right, chanend toVisualiser, int startPositi
 			started = true;
 			paused = false;
 		} else if(status == PAUSED && !paused) {
-			//printf("Pausing!\n");
+			printf("Pausing!\n");
 			paused = true;
 		} else if(status == TERMINATED && started) {
 			//printf("Going to terminate\n");
@@ -391,8 +397,15 @@ void particle(chanend left, chanend right, chanend toVisualiser, int startPositi
 						//printf("%d Allowed move to: %d\n",startPosition, leftMoveForbidden);
 					}
 					wasAsked = true;
-				break;
+					break;
+
 				default:
+					// Synch visualiser
+					toVisualiser <: 1000;
+					toVisualiser :> status;
+					printf("loop1 Visualiser status updated: %d\n", status);
+
+
 					// No one wanted anything
 					wasAsked = false;
 					break;
@@ -419,6 +432,10 @@ void particle(chanend left, chanend right, chanend toVisualiser, int startPositi
 						break;
 					default:
 						// Wait for reply
+
+						toVisualiser <: 1000;
+						toVisualiser :> status;
+						printf("loop1 Visualiser status updated: %d\n", status);
 						break;
 				}
 			}
@@ -448,8 +465,16 @@ void particle(chanend left, chanend right, chanend toVisualiser, int startPositi
 						//printf("%d: Got response from my left\n", startPosition);
 						noReply = false;
 						break;
+					case toVisualiser :> status:
+						printf("loop3 Visualiser status updated: %d\n", status);
+						break;
 					default:
 						//waitMoment(10000);
+
+						toVisualiser <: 1000;
+						toVisualiser :> status;
+						printf("loop1 Visualiser status updated: %d\n", status);
+
 						break;
 				}
 			}
