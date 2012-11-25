@@ -52,7 +52,7 @@ enum {
 #define PARTICLESPEED 8500000
 
 // Delay buttons so you can click on them a bit 'slower'
-#define BUTTONDELAY 16000000
+#define BUTTONDELAY 32000000
 
 // Define bool, true and false
 //typedef unsigned int bool;
@@ -81,7 +81,7 @@ void showLED(out port p, chanend fromVisualiser) {
 				break;
 		}
 	}
-	printf("Going to kill showLED\n");
+	//printf("Going to kill showLED\n");
 }
 
 //send pattern to LEDs
@@ -125,7 +125,7 @@ void visualiser(chanend toButtons, chanend show[], chanend toQuadrant[], out por
 	int j;
 
 	// Input from buttons
-	int input = 0;
+	int input = 0, previousInput = 0;
 
 	// Is simulation paused?
 	int isPaused = false;
@@ -148,8 +148,11 @@ void visualiser(chanend toButtons, chanend show[], chanend toQuadrant[], out por
 		select {
 			case toButtons :> input: {
 				//printf("Got input: %d\n", input);
-				for(int i = 0; i < noParticles; i++) {
-					synced[i] = false;
+				if(previousInput != input) {
+					for(int i = 0; i < noParticles; i++) {
+						synced[i] = false;
+					}
+					previousInput = input;
 				}
 				break;
 			}
@@ -160,6 +163,7 @@ void visualiser(chanend toButtons, chanend show[], chanend toQuadrant[], out por
 
 		for(int k = 0; k < noParticles; k++) {
 			if(synced[k]) continue;
+
 			select {
 				case show[k] :> j:
 					break;
@@ -226,12 +230,16 @@ void buttonListener(in port buttons, chanend toVisualiser) {
 	//Simulation Paused / Resumed
 	int simulationPaused = false;
 
+	int prevInput;
 	//helper variable to determine system shutdown
 	unsigned int running = 1;
 
 	while (running) {
 
-		buttons when pinsneq(15) :> buttonInput;
+		buttons when pinsneq(0) :> buttonInput;
+
+		if(prevInput == buttonInput)
+			continue;
 
 		/////////////////////////////////////////////////////////////////////// //
 		// ADD YOUR CODE HERE TO ACT ON BUTTON INPUT
@@ -262,13 +270,11 @@ void buttonListener(in port buttons, chanend toVisualiser) {
 				}
 				break;
 			case buttonC:
-				if(simulationStarted) {
-					//HALT
-					simulationStarted = false;
-					toVisualiser <: TERMINATED;
-					waitMoment(BUTTONDELAY);
-					running = false;
-				}
+				//HALT
+				simulationStarted = false;
+				toVisualiser <: TERMINATED;
+				waitMoment(BUTTONDELAY);
+				running = false;
 				break;
 			case buttonD:
 				if(simulationStarted)
@@ -281,6 +287,8 @@ void buttonListener(in port buttons, chanend toVisualiser) {
 			default:
 				break;
 		}
+
+		prevInput = buttonInput;
 	}
 }
 
@@ -383,6 +391,9 @@ void particle(chanend left, chanend right, chanend toVisualiser, int startPositi
 				break;
 		}
 
+		//if(paused)
+			//printf("Paused\n");
+
 		if(paused || !started)
 		{
 			continue;
@@ -444,7 +455,6 @@ void particle(chanend left, chanend right, chanend toVisualiser, int startPositi
 
 		// Don't proceed if status changed from running
 		if(status != RUNNING) {
-
 			continue;
 		}
 
@@ -479,6 +489,16 @@ void particle(chanend left, chanend right, chanend toVisualiser, int startPositi
 						}
 					break;
 				}
+
+				// Don't proceed if status changed from running
+				if(status != RUNNING) {
+					break;
+				}
+			}
+
+			if(status != RUNNING) {
+				printf("Nonononon!\n");
+				continue;
 			}
 
 			if(rightMoveForbidden == allowed) {
@@ -522,8 +542,18 @@ void particle(chanend left, chanend right, chanend toVisualiser, int startPositi
 
 						break;
 				}
+
+				// Don't proceed if status changed from running
+				if(status != RUNNING) {
+					break;
+				}
 			}
 
+			// Don't proceed if status changed from running
+			if(status != RUNNING) {
+				//printf("Nonononon!\n");
+				continue;
+			}
 			if(leftMoveForbidden == allowed) {
 				//printf("%d Moving to: %d\n",startPosition, attemptedPosition);
 				position = attemptedPosition;
@@ -533,18 +563,8 @@ void particle(chanend left, chanend right, chanend toVisualiser, int startPositi
 				toggleDirection(currentDirection);
 			}
 		}
-
-
-
-		//the verdict of the left neighbour if move is allowed
-
-		//the verdict of the right neighbour if move is allowed
-
-		//the current particle velocity
-		//waitMoment(1000);
-
 	}
-	printf("Particle terminates...\n");
+	//printf("Particle terminates...\n");
 }
 
 //MAIN PROCESS defining channels, orchestrating and starting the threads
