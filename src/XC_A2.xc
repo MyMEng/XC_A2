@@ -7,7 +7,8 @@
 #include <stdio.h>
 #include <platform.h>
 
-out port cled[4] = {PORT_CLOCKLED_0,PORT_CLOCKLED_1,PORT_CLOCKLED_2,PORT_CLOCKLED_3}; out port cledG = PORT_CLOCKLED_SELG;
+out port cled[4] = {PORT_CLOCKLED_0,PORT_CLOCKLED_1,PORT_CLOCKLED_2,PORT_CLOCKLED_3};
+out port cledG = PORT_CLOCKLED_SELG;
 out port cledR = PORT_CLOCKLED_SELR;
 in port buttons = PORT_BUTTON;
 out port speaker = PORT_SPEAKER;
@@ -42,10 +43,9 @@ const int startDirection[noParticles] = {ACLKWISE, CLKWISE, ACLKWISE};
 #define buttonD 7
 
 enum {
-	NOTSTARTED = 0,
-	RUNNING = 1,
-	PAUSED = 2,
-	TERMINATED = 4
+	RUNNING = 21,
+	PAUSED = 22,
+	TERMINATED = 23
 };
 
 //Particle speed setting
@@ -147,7 +147,11 @@ void visualiser(chanend toButtons, chanend show[], chanend toQuadrant[], out por
 		// Check if buttons were pressed
 		select {
 			case toButtons :> input: {
-				//printf("Got input: %d\n", input);
+				printf("Vis got input %d\n", input);
+
+				if(input == PAUSED)
+					isPaused = true;
+
 				if(previousInput != input) {
 					for(int i = 0; i < noParticles; i++) {
 						synced[i] = false;
@@ -161,39 +165,36 @@ void visualiser(chanend toButtons, chanend show[], chanend toQuadrant[], out por
 			}
 		}
 
-		for(int k = 0; k < noParticles; k++) {
-			if(synced[k]) continue;
-
-			select {
-				case show[k] :> j:
-					break;
-				default:
-					break;
+		if(input == RUNNING && (!started || isPaused)) {
+			printf("Going to start\n");
+			for(int k = 0; k < noParticles; k++) {
+				show[k] <: RUNNING;
+				synced[k] = true;
 			}
-			show[k] <: input;
-			synced[k] = true;
-		}
-
-		if(input == TERMINATED) {
-			running = false;
-			continue;
+			started = true;
+			isPaused = false;
 		}
 
 		for (int k=0;k<noParticles;k++) {
 
 			//int wasPauseSent = false;
-
 			select {
 				case show[k] :> j: {
 					// Got a position to display
 					if (j<12) {
 						display[k] = j;
+						// Sync
+						if(!synced[k]) {
+							show[k] <: input;
+							synced[k] = true;
+						}
 					} else {
 						printf("Wierd input\n");
 					}
 					break;
 				}
 				default: {
+
 					break;
 				}
 			}
@@ -207,6 +208,11 @@ void visualiser(chanend toButtons, chanend show[], chanend toQuadrant[], out por
 					j += (16<<(display[k]%3))*(display[k]/3==i);
 				toQuadrant[i] <: j;
 			}
+		}
+
+		if(input == TERMINATED) {
+			running = false;
+			continue;
 		}
 	}
 
@@ -367,204 +373,132 @@ void particle(chanend left, chanend right, chanend toVisualiser, int startPositi
 	// Display start position
 	toVisualiser <: startPosition;
 
-
-	/////////////////////////////////////////////////////////////////////// //
-	// ADD YOUR CODE HERE TO SIMULATE PARTICLE BEHAVIOUR
-	// ///////////////////////////////////////////////////////////////////////
 	while(running) {
-		// Assume the particle was requested position check
-		int wasAsked = true;
 
-
-
-		// Wait a moment for a possible input?
-		//waitMoment(1000);
-
-		// Check any state change for the simulation
-		//printf("%d loop0 I check synchro!!\n", startPosition);
 		select {
 			case toVisualiser :> status:
-				//printf("%d Visualiser status updated: %d\n", startPosition, status);
-				updateState(status, paused, running, started);
+				printf("%d Got a status changed selected %d\n", startPosition, status);
 				break;
 			default:
 				break;
 		}
 
-		//if(paused)
-			//printf("Paused\n");
+		//printf("%d Got a status changed selected %d\n", startPosition, status);
+		if(!started && status == RUNNING)
+			started = true;
 
-		if(paused || !started)
-		{
-			continue;
-		}
+		if(status == TERMINATED && !started)
+			break;
 
-		//printf("%d is now at position: %d\n",startPosition, position);
+		if(!started) continue;
 
-		// Respond to position check requests
-		while(wasAsked) {
-			// See if left or right asks something
-			select {
-				case right :> rightMoveForbidden:
-					//printf("%d: Was asked from right\n", startPosition);
-					if(rightMoveForbidden == position) {
-						// Position taken
-						right <: forbidden;
-						//Now we have to change direction - collision detected
-						toggleDirection(currentDirection);
-						wasAsked = false;
-						//printf("%d Rejected move to: %d\n",startPosition, rightMoveForbidden);
-					} else {
-						right <: allowed;
-						//printf("%d Allowed move to: %d\n",startPosition, rightMoveForbidden);
-					}
-					wasAsked = true;
-					break;
-				case left :> leftMoveForbidden:
-					//printf("%d: Was asked from left\n", startPosition);
-					if(leftMoveForbidden == position) {
-						// Position taken, don't allow to move
-						left <: forbidden;
-						//Now we have to change direction - collision detected
-						toggleDirection(currentDirection);
-						// Now your turn
-						wasAsked = false;
-						//printf("%d Rejected move to: %d\n",startPosition, leftMoveForbidden);
-					} else {
-						left <: allowed;
-						//printf("%d Allowed move to: %d\n",startPosition, leftMoveForbidden);
-					}
-					wasAsked = true;
-					break;
-
-				default:
-					// Synch visualiser
-					select {
-						case toVisualiser :> status:
-							//printf("%d loop1 Visualiser status updated: %d\n", startPosition, status);
-							updateState(status, paused, running, started);
-							break;
-						default:
-							break;
-					}
-					// No one wanted anything
-					wasAsked = false;
-					break;
+		select {
+			case left :> leftMoveForbidden: {
+				if(status == PAUSED) {
+					left <: PAUSED;
+				} else if(status == TERMINATED) {
+					left <: TERMINATED;
+				} else if(leftMoveForbidden == position) {
+					left <: forbidden;
+					toggleDirection(currentDirection);
+				} else {
+					left <: allowed;
+				}
+				break;
 			}
-		}
+			case right :> rightMoveForbidden: {
 
-		// Don't proceed if status changed from running
-		if(status != RUNNING) {
-			continue;
-		}
+				if(status == PAUSED) {
+					right <: PAUSED;
+				} else if(status == TERMINATED) {
+					right <: TERMINATED;
+				} else if(rightMoveForbidden == position) {
+					right <: forbidden;
+					toggleDirection(currentDirection);
+				} else {
+					right <: allowed;
+				}
 
-		// Choose new attempted position based on current direction
-		attemptedPosition = getAttemptedPosition(currentDirection, position);
+				break;
+			}
+			default: {
 
-		// If nothing asking, go and ask
-		if(currentDirection == ACLKWISE) {
+				if(status == PAUSED || status == TERMINATED)
+					break;
 
-			int noReply = true;
+				attemptedPosition = getAttemptedPosition(currentDirection, position);
 
-			//printf("%d: Asking right\n", startPosition);
-			right <: attemptedPosition;
+				if(currentDirection == CLKWISE) {
 
-			//printf("Going to wait for right\n");
-			while(noReply) {
+					// Ask
+					left <: attemptedPosition;
 
-				select {
-					case right :> rightMoveForbidden:
-						noReply = false;
+					// Get answer
+					left :> leftMoveForbidden;
+
+					if(leftMoveForbidden == allowed) {
+						position = attemptedPosition;
+
+						// check if status changed
+//						select {
+//							case toVisualiser :> status:
+//								break;
+//							default:
+//								break;
+//						}
+
+						if(status == RUNNING)
+							toVisualiser <: position;
+
+					} else if(leftMoveForbidden == PAUSED) {
+						status = PAUSED;
 						break;
-					default:
-						// Check for synchro
-						select {
+					} else if(leftMoveForbidden == TERMINATED) {
+						status = TERMINATED;
+						break;
+					} else {
+						toggleDirection(currentDirection);
+					}
+
+				} else {
+
+					right <: attemptedPosition;
+					right :> rightMoveForbidden;
+
+					if(rightMoveForbidden == allowed) {
+						position = attemptedPosition;
+
+						// check if status changed
+					/*	select {
 							case toVisualiser :> status:
-								//printf("%d loop2 Visualiser status updated: %d\n", startPosition, status);
-								if(updateState(status, paused, running, started))
-									noReply = false;
-							break;
+								break;
 							default:
 								break;
-						}
-					break;
-				}
+						}*/
 
-				// Don't proceed if status changed from running
-				if(status != RUNNING) {
-					break;
-				}
-			}
+						if(status == RUNNING)
+							toVisualiser <: position;
 
-			if(status != RUNNING) {
-				printf("Nonononon!\n");
-				continue;
-			}
-
-			if(rightMoveForbidden == allowed) {
-				position = attemptedPosition;
-				toVisualiser <: position;
-				//printf("%d Moving to: %d\n",startPosition, attemptedPosition);
-			}
-			else {
-				// if move not allowed -> collision
-				toggleDirection(currentDirection);
-			}
-
-		} else if(currentDirection == CLKWISE) {
-
-			int noReply = true;
-
-			//printf("%d: Asking left\n", startPosition);
-
-			left <: attemptedPosition;
-
-			//printf("Going to wait for left\n");
-			while(noReply) {
-				select {
-					case left :> leftMoveForbidden:
-						//printf("%d: Got response from my left\n", startPosition);
-						noReply = false;
+					} else if(rightMoveForbidden == PAUSED) {
+						status = PAUSED;
 						break;
-					default:
-						//waitMoment(10000);
-						//printf("loop3 I want synchro!!\n");
-						//toVisualiser <: 1000;
-						select {
-							case toVisualiser :> status:
-								//printf("%d loop3 Visualiser status updated: %d\n", startPosition, status);
-								if(updateState(status, paused, running, started))
-									noReply = false;
-							break;
-							default:
-								break;
-						}
-
+					} else if(rightMoveForbidden == TERMINATED) {
+						status = TERMINATED;
 						break;
+					} else {
+						toggleDirection(currentDirection);
+					}
 				}
 
-				// Don't proceed if status changed from running
-				if(status != RUNNING) {
-					break;
-				}
-			}
+				break;
+			} // default
+		} // select
 
-			// Don't proceed if status changed from running
-			if(status != RUNNING) {
-				//printf("Nonononon!\n");
-				continue;
-			}
-			if(leftMoveForbidden == allowed) {
-				//printf("%d Moving to: %d\n",startPosition, attemptedPosition);
-				position = attemptedPosition;
-				toVisualiser <: position;
-			}
-			else {
-				toggleDirection(currentDirection);
-			}
-		}
+		if(status == TERMINATED)
+			break;
+
 	}
-	//printf("Particle terminates...\n");
+	printf("Particle terminates...\n");
 }
 
 //MAIN PROCESS defining channels, orchestrating and starting the threads
