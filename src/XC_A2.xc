@@ -7,7 +7,8 @@
 #include <stdio.h>
 #include <platform.h>
 
-out port cled[4] = {PORT_CLOCKLED_0,PORT_CLOCKLED_1,PORT_CLOCKLED_2,PORT_CLOCKLED_3}; out port cledG = PORT_CLOCKLED_SELG;
+out port cled[4] = {PORT_CLOCKLED_0,PORT_CLOCKLED_1,PORT_CLOCKLED_2,PORT_CLOCKLED_3};
+out port cledG = PORT_CLOCKLED_SELG;
 out port cledR = PORT_CLOCKLED_SELR;
 in port buttons = PORT_BUTTON;
 out port speaker = PORT_SPEAKER;
@@ -42,10 +43,10 @@ const int startDirection[noParticles] = {ACLKWISE, CLKWISE, ACLKWISE};
 #define buttonD 7
 
 enum {
-	NOTSTARTED = 0,
-	RUNNING = 1,
-	PAUSED = 2,
-	TERMINATED = 4
+	NOTSTARTED = 20,
+	RUNNING = 21,
+	PAUSED = 22,
+	TERMINATED = 23
 };
 
 //Particle speed setting
@@ -62,10 +63,11 @@ enum {
 ///////////////////////////////////////////////////////////////////////////////////////// //
 // Helper Functions provided for you
 // /////////////////////////////////////////////////////////////////////////////////////////
+//send pattern to LEDs
 //DISPLAYS an LED pattern in one quadrant of the clock LEDs
 void showLED(out port p, chanend fromVisualiser) {
 	unsigned int lightUpPattern;
-	unsigned int running = 1;
+	unsigned int running = true;
 	while (running) {
 		select {
 			case fromVisualiser :> lightUpPattern: {//read LED pattern from visualiser process
@@ -84,7 +86,6 @@ void showLED(out port p, chanend fromVisualiser) {
 	printf("Going to kill showLED\n");
 }
 
-//send pattern to LEDs
 //PLAYS a short sound (pls use with caution and consideration to other students in the labs!)
 void playSound(unsigned int wavelength, int duration, out port speaker) { timer tmr;
 	int t, isOn = 1;
@@ -122,7 +123,7 @@ void visualiser(chanend toButtons, chanend show[], chanend toQuadrant[], out por
 	int synced[noParticles];
 
 	//helper variable
-	int j;
+	int j = 0;
 
 	// Input from buttons
 	int input = 0;
@@ -147,7 +148,7 @@ void visualiser(chanend toButtons, chanend show[], chanend toQuadrant[], out por
 		// Check if buttons were pressed
 		select {
 			case toButtons :> input: {
-				//printf("Got input: %d\n", input);
+				printf("Got input: %d\n", input);
 				for(int i = 0; i < noParticles; i++) {
 					synced[i] = false;
 				}
@@ -159,7 +160,9 @@ void visualiser(chanend toButtons, chanend show[], chanend toQuadrant[], out por
 		}
 
 		for(int k = 0; k < noParticles; k++) {
-			if(synced[k]) continue;
+			if(synced[k]) {
+				continue;
+			}
 			select {
 				case show[k] :> j:
 					break;
@@ -175,7 +178,7 @@ void visualiser(chanend toButtons, chanend show[], chanend toQuadrant[], out por
 			continue;
 		}
 
-		for (int k=0;k<noParticles;k++) {
+		for (int k=0; k<noParticles; k++) {
 
 			//int wasPauseSent = false;
 
@@ -207,8 +210,9 @@ void visualiser(chanend toButtons, chanend show[], chanend toQuadrant[], out por
 	}
 
 	printf("Going to kill visualiser\n");
-	for (int k=0;k<4;k++)
+	for (int k=0; k<4; k++) {
 		toQuadrant[k] <: TERMINATED;
+	}
 }
 
 //READ BUTTONS and send commands to Visualiser
@@ -227,7 +231,7 @@ void buttonListener(in port buttons, chanend toVisualiser) {
 	int simulationPaused = false;
 
 	//helper variable to determine system shutdown
-	unsigned int running = 1;
+	unsigned int running = true;
 
 	while (running) {
 
@@ -239,9 +243,9 @@ void buttonListener(in port buttons, chanend toVisualiser) {
 
 		switch(buttonInput){
 			case buttonA:
-				if(simulationStarted)
+				if(simulationStarted) {
 					break;
-				else {
+				} else {
 					//START SIMULATION
 					simulationStarted = true;
 					toVisualiser <: RUNNING;
@@ -254,29 +258,33 @@ void buttonListener(in port buttons, chanend toVisualiser) {
 					if(simulationPaused) {
 						simulationPaused = false;
 						toVisualiser <: RUNNING;
+						printf("unpouse\n");
 					} else {
 						simulationPaused = true;
 						toVisualiser <: PAUSED;
+						printf("pause\n");
 					}
 					waitMoment(BUTTONDELAY);
+				} else {
 				}
 				break;
 			case buttonC:
 				if(simulationStarted) {
 					//HALT
 					simulationStarted = false;
+					running = false;
 					toVisualiser <: TERMINATED;
 					waitMoment(BUTTONDELAY);
-					running = false;
 				}
 				break;
 			case buttonD:
-				if(simulationStarted)
+				if(simulationStarted) {
 					waitMoment(BUTTONDELAY);
 					//Thing
-				else
+				} else {
 					waitMoment(BUTTONDELAY);
 					//BEFORE START - NUMBER OF PARTICLES
+				}
 				break;
 			default:
 				break;
@@ -287,22 +295,29 @@ void buttonListener(in port buttons, chanend toVisualiser) {
 
 // Change current direction to an opposite one
 void toggleDirection(int& direction) {
-	if(direction == CLKWISE) direction = ACLKWISE;
-	else direction = CLKWISE;
+	if(direction == CLKWISE) {
+		direction = ACLKWISE;
+	} else {
+		direction = CLKWISE;
+	}
 }
 
 int getAttemptedPosition(int direction, int position) {
 
 	int attemptedPosition;
 	// Choose new attempted position based on current direction
-	if(direction == CLKWISE)
+	if(direction == CLKWISE) {
 		attemptedPosition = position + 1;
-	else
+	} else {
 		attemptedPosition = position - 1;
+	}
 
 	// Go in circle
-	if(attemptedPosition == 12) attemptedPosition = 0;
-	else if(attemptedPosition == -1) attemptedPosition = 11;
+	if(attemptedPosition == 12) {
+		attemptedPosition = 0;
+	} else if(attemptedPosition == -1) {
+		attemptedPosition = 11;
+	}
 
 	return attemptedPosition;
 }
@@ -312,21 +327,21 @@ int updateState(int state, int &isPaused, int &running, int &started) {
 	int shouldBreak = false;
 
 	switch(state) {
-	case RUNNING:
-		//printf("Set to running\n");
-		started = true;
-		isPaused = false;
-		break;
-	case PAUSED:
-		isPaused = true;
-		break;
-	case TERMINATED:
-		//printf("I am going say terminated\n");
-		started = false;
-		shouldBreak = true;
-		running = false;
-		break;
-	}
+		case RUNNING:
+			//printf("Set to running\n");
+			started = true;
+			isPaused = false;
+			break;
+		case PAUSED:
+			isPaused = true;
+			break;
+		case TERMINATED:
+			//printf("I am going say terminated\n");
+			started = false;
+			shouldBreak = true;
+			running = false;
+			break;
+		}
 
 	// Tell if current loop should be restarted
 	return shouldBreak;
@@ -344,9 +359,9 @@ void particle(chanend left, chanend right, chanend toVisualiser, int startPositi
 
 	int currentDirection = startDirection;
 
-	int leftMoveForbidden = 0;
+	int leftMoveForbidden = false;
 
-	int rightMoveForbidden = 0;
+	int rightMoveForbidden = false;
 
 	int currentVelocity = 1;
 
@@ -383,8 +398,7 @@ void particle(chanend left, chanend right, chanend toVisualiser, int startPositi
 				break;
 		}
 
-		if(paused || !started)
-		{
+		if(paused || !started) {
 			continue;
 		}
 
@@ -425,7 +439,6 @@ void particle(chanend left, chanend right, chanend toVisualiser, int startPositi
 					}
 					wasAsked = true;
 					break;
-
 				default:
 					// Synch visualiser
 					select {
@@ -444,7 +457,6 @@ void particle(chanend left, chanend right, chanend toVisualiser, int startPositi
 
 		// Don't proceed if status changed from running
 		if(status != RUNNING) {
-
 			continue;
 		}
 
@@ -453,12 +465,9 @@ void particle(chanend left, chanend right, chanend toVisualiser, int startPositi
 
 		// If nothing asking, go and ask
 		if(currentDirection == ACLKWISE) {
-
 			int noReply = true;
-
 			//printf("%d: Asking right\n", startPosition);
 			right <: attemptedPosition;
-
 			//printf("Going to wait for right\n");
 			while(noReply) {
 
@@ -471,9 +480,10 @@ void particle(chanend left, chanend right, chanend toVisualiser, int startPositi
 						select {
 							case toVisualiser :> status:
 								//printf("%d loop2 Visualiser status updated: %d\n", startPosition, status);
-								if(updateState(status, paused, running, started))
+								if(updateState(status, paused, running, started)) {
 									noReply = false;
-							break;
+								}
+								break;
 							default:
 								break;
 						}
@@ -513,13 +523,13 @@ void particle(chanend left, chanend right, chanend toVisualiser, int startPositi
 						select {
 							case toVisualiser :> status:
 								//printf("%d loop3 Visualiser status updated: %d\n", startPosition, status);
-								if(updateState(status, paused, running, started))
+								if(updateState(status, paused, running, started)) {
 									noReply = false;
-							break;
+								}
+								break;
 							default:
 								break;
 						}
-
 						break;
 				}
 			}
