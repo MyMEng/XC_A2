@@ -149,8 +149,7 @@ void visualiser(chanend toButtons, chanend show[], chanend toQuadrant[], out por
 			case toButtons :> input: {
 				printf("Vis got input %d\n", input);
 
-				if(input == PAUSED)
-					isPaused = true;
+
 
 				if(previousInput != input) {
 					for(int i = 0; i < noParticles; i++) {
@@ -163,6 +162,15 @@ void visualiser(chanend toButtons, chanend show[], chanend toQuadrant[], out por
 			default: {
 				break;
 			}
+		}
+
+		if(input == TERMINATED && !started)
+		{
+			for(int k = 0; k < noParticles; k++)
+				show[k] <: TERMINATED;
+
+			running = false;
+			continue;
 		}
 
 		if(input == RUNNING && (!started || isPaused)) {
@@ -180,21 +188,29 @@ void visualiser(chanend toButtons, chanend show[], chanend toQuadrant[], out por
 			//int wasPauseSent = false;
 			select {
 				case show[k] :> j: {
+
+
+
 					// Got a position to display
 					if (j<12) {
+						// Update displayed position
 						display[k] = j;
-						// Sync
-						if(!synced[k]) {
-							show[k] <: input;
+					} else if(j == 1000) {
+						show[k] <: input;
+
+						if(input == TERMINATED)
 							synced[k] = true;
-						}
+//						if(input == PAUSED && !isPaused)
+//						{
+//							printf("%d Going to send pause\n", k);
+//							show[k] <: PAUSED;
+//						}
 					} else {
 						printf("Wierd input\n");
 					}
 					break;
 				}
 				default: {
-
 					break;
 				}
 			}
@@ -210,8 +226,16 @@ void visualiser(chanend toButtons, chanend show[], chanend toQuadrant[], out por
 			}
 		}
 
-		if(input == TERMINATED) {
-			running = false;
+		if(input == PAUSED) {
+			isPaused = true;
+		} else if(input == TERMINATED) {
+			int canFinish;
+			for(int k = 0; k < noParticles;k++) {
+				canFinish = canFinish & synced[k];
+			}
+
+			if(canFinish)
+				running = false;
 			continue;
 		}
 	}
@@ -321,30 +345,7 @@ int getAttemptedPosition(int direction, int position) {
 	return attemptedPosition;
 }
 
-// Update particle state
-int updateState(int state, int &isPaused, int &running, int &started) {
-	int shouldBreak = false;
 
-	switch(state) {
-	case RUNNING:
-		//printf("Set to running\n");
-		started = true;
-		isPaused = false;
-		break;
-	case PAUSED:
-		isPaused = true;
-		break;
-	case TERMINATED:
-		//printf("I am going say terminated\n");
-		started = false;
-		shouldBreak = true;
-		running = false;
-		break;
-	}
-
-	// Tell if current loop should be restarted
-	return shouldBreak;
-}
 //PARTICLE...thread to represent a particle - to be replicated noParticle-times
 void particle(chanend left, chanend right, chanend toVisualiser, int startPosition, int startDirection) {
 
@@ -447,8 +448,12 @@ void particle(chanend left, chanend right, chanend toVisualiser, int startPositi
 //								break;
 //						}
 
-						if(status == RUNNING)
+						if(status == RUNNING) {
 							toVisualiser <: position;
+							toVisualiser <: 1000;
+							toVisualiser :> status;
+							break;
+						}
 
 					} else if(leftMoveForbidden == PAUSED) {
 						status = PAUSED;
@@ -476,8 +481,13 @@ void particle(chanend left, chanend right, chanend toVisualiser, int startPositi
 								break;
 						}*/
 
-						if(status == RUNNING)
+						if(status == RUNNING) {
 							toVisualiser <: position;
+							// synch
+							toVisualiser <: 1000;
+							toVisualiser :> status;
+							break;
+						}
 
 					} else if(rightMoveForbidden == PAUSED) {
 						status = PAUSED;
@@ -495,7 +505,20 @@ void particle(chanend left, chanend right, chanend toVisualiser, int startPositi
 		} // select
 
 		if(status == TERMINATED)
-			break;
+		{
+			select {
+				case left :> leftMoveForbidden:
+					left <: TERMINATED;
+					break;
+				case right :> rightMoveForbidden:
+					right <: TERMINATED;
+					break;
+				default:
+					break;
+			}
+			running = false;
+		}
+
 
 	}
 	printf("Particle terminates...\n");
