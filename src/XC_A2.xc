@@ -45,11 +45,12 @@ enum {
 	RUNNING = 21,
 	PAUSED = 22,
 	TERMINATED = 23,
-	COLLISION = 30
+	COLLISION = 30,
+	KILL = 66
 };
 
 //Particle speed setting
-#define PARTICLESPEED 1000000
+#define PARTICLESPEED 2500000
 // Delay buttons so you can click on them a bit 'slower'
 #define BUTTONDELAY 32000000
 
@@ -117,20 +118,11 @@ void visualiser(chanend toButtons, chanend show[], chanend toQuadrant[], out por
 	//helper variable to determine system shutdown
 	unsigned int running = true;
 
-	//keep track of synced particles
-	int synced[noParticles];
-
 	//helper variable
 	int j;
 
 	// Input from buttons
 	int input = 0, previousInput = 0;
-
-	// Is simulation paused?
-	int isPaused = false;
-
-	// Has simulation started?
-	int started = false;
 
 	// Flash red leds
 	cledR <: 1;
@@ -142,31 +134,21 @@ void visualiser(chanend toButtons, chanend show[], chanend toQuadrant[], out por
 		display[i] = j;
 	}
 
-
 	while (running) {
-
-		int resetInput = false;
 
 		// Check if buttons were pressed
 		select {
-			case toButtons :> input: {
-				printf("Vis got input %d, previous %d\n", input, previousInput);
-				for(int k = 0; k < noParticles; k++) {
-						synced[k] = false;
-				}
+			case toButtons :> input:
 				break;
-			}
-			default: {
+			default:
 				break;
-			}
 		}
 
 		waitMoment(PARTICLESPEED);
-		//waitMoment(10000000);
 
 		for (int k=0;k<noParticles;k++) {
 
-			if(input == RUNNING)
+			if(input == RUNNING || input == TERMINATED)
 			{
 
 				select {
@@ -175,12 +157,11 @@ void visualiser(chanend toButtons, chanend show[], chanend toQuadrant[], out por
 						if (j < 12 && j >= 0) {
 							// Update displayed position
 							display[k] = j;
-
-
-								//printf("%d at position %d\n", k, j);
-
-							//if(input != 0)
 							show[k] <: input;
+
+							if(input == TERMINATED)
+								display[k] = TERMINATED;
+
 						} else {
 							int requestedPosition = j - 1000;
 							int result = allowed;
@@ -197,7 +178,12 @@ void visualiser(chanend toButtons, chanend show[], chanend toQuadrant[], out por
 							if(result == allowed) {
 								display[k] = requestedPosition;
 							}
-							show[k] <: result;
+							if(input != TERMINATED)
+								show[k] <: result;
+							else {
+								show[k] <: TERMINATED;
+								display[k] = TERMINATED;
+							}
 						}
 						break;
 					}
@@ -212,7 +198,10 @@ void visualiser(chanend toButtons, chanend show[], chanend toQuadrant[], out por
 			j = 0;
 
 			for (int k=0;k<noParticles;k++) {
-				j += (16<<(display[k]%3))*(display[k]/3==i);
+				if(display[k] == TERMINATED)
+					j = 0;
+				else
+					j += (16<<(display[k]%3))*(display[k]/3==i);
 			}
 
 			toQuadrant[i] <: j;
@@ -220,11 +209,21 @@ void visualiser(chanend toButtons, chanend show[], chanend toQuadrant[], out por
 
 
 
-		if(input == TERMINATED)
+		for (int k=0;k<noParticles;k++) {
 			running = false;
+			if(display[k] != TERMINATED)
+				running = true;
+		}
 	}
 
-	//printf("Going to kill visualiser\n");
+
+	printf("Going to kill visualiser\n");
+
+//	for (int k=0;k<noParticles;k++) {
+//		show[k] :> j;
+//		show[k] <: TERMINATED;
+//	}
+
 	for (int k=0; k<= maxCoreNo; k++)
 		toQuadrant[k] <: TERMINATED;
 }
@@ -355,10 +354,13 @@ void particle(chanend left, chanend right, chanend toVisualiser, int startPositi
 	// Pause initially
 	int status = PAUSED;
 
+	int isMaster;
+
 	// Display start position
 	toVisualiser <: startPosition;
 
-	if(startPositions[0] == startPosition)
+	isMaster = startPositions[0] == startPosition;
+	if(isMaster)
 	{
 		printf("I am a master!\n");
 		right <: 0;
@@ -366,31 +368,57 @@ void particle(chanend left, chanend right, chanend toVisualiser, int startPositi
 
 
 	while(running) {
-		int gotStatus = 1;
 
+
+		int waitForUpdate = true;
+
+		if(status == TERMINATED){
+					running = false;
+					continue;
+				}
 		// Pass status to the left
 		//printf("%d Wait left\n", startPosition);
-		while(gotStatus) {
+		while(waitForUpdate) {
 			select {
 				case left :> status:
-					gotStatus = 0;
+
+					// Check if terminating
+					if(status == TERMINATED) {
+							running = false;
+
+						//printf("I will set running to false\n");
+						//running = false;
+						waitForUpdate = false;
+						break;
+					}
+
+					waitForUpdate = false;
 					break;
 				case toVisualiser :> status:
+
+					//printf("got some update!\n");
 					if(status == COLLISION) {
 						toggleDirection(currentDirection);
-						//printf("Someone collided with me!\n");
+						printf("Someone collided with me!\n");
 					} else {
 						printf("TROLOOLOLOLO!\n");
 					}
+
+					if(status == TERMINATED) {
+						waitForUpdate = false;
+						break;
+					}
+
 					break;
 			}
 		}
 
-		// Report position
-		//printf("%d Going to report position\n", startPosition);
-		toVisualiser <: position;
+		// Report position unless terminating
+		if(status != TERMINATED) {
+			toVisualiser <: position;
+		}
 
-		if(status != COLLISION) {
+		if(status != COLLISION && status != TERMINATED) {
 		// Receive status
 		select {
 			case toVisualiser :> status:
@@ -402,7 +430,10 @@ void particle(chanend left, chanend right, chanend toVisualiser, int startPositi
 		}
 		}
 
-		if(status == COLLISION) {
+		if(status == TERMINATED) {
+			printf("Got terminated\n");
+		}
+		else if(status == COLLISION) {
 			//printf("%d I guess i need to bumpt\n", startPosition);
 			toggleDirection(currentDirection);
 
@@ -414,6 +445,11 @@ void particle(chanend left, chanend right, chanend toVisualiser, int startPositi
 			toVisualiser <: (attemptedPosition + 1000);
 
 			toVisualiser :> rightMoveForbidden;
+
+			if(rightMoveForbidden == TERMINATED) {
+				status = TERMINATED;
+				continue;
+			}
 
 			if(rightMoveForbidden == allowed)
 				position = attemptedPosition;
@@ -432,11 +468,8 @@ void particle(chanend left, chanend right, chanend toVisualiser, int startPositi
 
 		// Read status from right
 		//printf("%d Send right\n", startPosition);
-		right <: status;
-
-		// Check if terminating
-		if(status == TERMINATED)
-			running = false;
+		if(status != TERMINATED || !isMaster)
+			right <: status;
 	}
 	printf("%d Particle terminates...\n", startPosition);
 }
