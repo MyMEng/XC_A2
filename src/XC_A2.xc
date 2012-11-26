@@ -118,11 +118,14 @@ void visualiser(chanend toButtons, chanend show[], chanend toQuadrant[], out por
 	//helper variable to determine system shutdown
 	unsigned int running = true;
 
+	// is paused?
+	int isPaused = false;
+
 	//helper variable
 	int j;
 
 	// Input from buttons
-	int input = 0, previousInput = 0;
+	int input = 0;
 
 	// Flash red leds
 	cledR <: 1;
@@ -139,10 +142,38 @@ void visualiser(chanend toButtons, chanend show[], chanend toQuadrant[], out por
 		// Check if buttons were pressed
 		select {
 			case toButtons :> input:
+
 				break;
 			default:
 				break;
 		}
+
+		if(input == PAUSED) {
+			isPaused = true;
+		} else if(input == RUNNING) {
+			isPaused = false;
+		}
+
+		if(input == TERMINATED) {
+			int stop;
+			for(int k = 0; k < noParticles; k++) {
+				select {
+					case show[k] :> j:
+						stop = true;
+						show[k] <: TERMINATED;
+						break;
+					default:
+						break;
+				}
+			}
+
+			if(stop) {
+				printf("Stop.\n");
+				running = false;
+				continue;
+			}
+		}
+
 
 		waitMoment(PARTICLESPEED);
 
@@ -169,8 +200,11 @@ void visualiser(chanend toButtons, chanend show[], chanend toQuadrant[], out por
 							{
 								if(display[i] == requestedPosition)
 								{
-									show[i] <: COLLISION;
-									//printf("%d collided with %d\n", k, i);
+									if(input == TERMINATED) {
+										show[i] <: TERMINATED;
+									} else {
+										show[i] <: COLLISION;
+									}
 									result = forbidden;
 									break;
 								}
@@ -379,6 +413,7 @@ void particle(chanend left, chanend right, chanend toVisualiser, int startPositi
 		while(waitForUpdate) {
 			select {
 				case right :> status:
+					printf("Got terminated\n");
 					waitForUpdate = false;
 					if(kills == false) {
 						// not a killer, pass it
@@ -409,6 +444,8 @@ void particle(chanend left, chanend right, chanend toVisualiser, int startPositi
 					}
 
 					if(status == TERMINATED) {
+						printf("Got terminated\n");
+
 						waitForUpdate = false;
 					}
 
@@ -455,10 +492,9 @@ void particle(chanend left, chanend right, chanend toVisualiser, int startPositi
 
 			if(rightMoveForbidden == TERMINATED) {
 				status = TERMINATED;
-				continue;
+				printf("Got terminated\n");
 			}
-
-			if(rightMoveForbidden == allowed)
+			else if(rightMoveForbidden == allowed)
 				position = attemptedPosition;
 			else
 			{
