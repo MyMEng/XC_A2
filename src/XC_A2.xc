@@ -207,12 +207,14 @@ void visualiser(chanend toButtons, chanend show[], chanend toQuadrant[], out por
 			toQuadrant[i] <: j;
 		}
 
-
-
-		for (int k=0;k<noParticles;k++) {
+//		for (int k=0;k<noParticles;k++) {
+//			running = true;
+//			if(display[k] == TERMINATED)
+//				running = false;
+//		}
+		if(input == TERMINATED)
+		{
 			running = false;
-			if(display[k] != TERMINATED)
-				running = true;
 		}
 	}
 
@@ -354,7 +356,8 @@ void particle(chanend left, chanend right, chanend toVisualiser, int startPositi
 	// Pause initially
 	int status = PAUSED;
 
-	int isMaster;
+	int isMaster = false;
+	int kills = false;
 
 	// Display start position
 	toVisualiser <: startPosition;
@@ -368,29 +371,30 @@ void particle(chanend left, chanend right, chanend toVisualiser, int startPositi
 
 
 	while(running) {
-
-
 		int waitForUpdate = true;
 
-		if(status == TERMINATED){
-					running = false;
-					continue;
-				}
+
 		// Pass status to the left
 		//printf("%d Wait left\n", startPosition);
 		while(waitForUpdate) {
 			select {
+				case right :> status:
+					waitForUpdate = false;
+					if(kills == false) {
+						// not a killer, pass it
+						left <: status;
+					}
+					running = false;
+					break;
 				case left :> status:
 
 					// Check if terminating
-					if(status == TERMINATED) {
-							running = false;
-
-						//printf("I will set running to false\n");
-						//running = false;
-						waitForUpdate = false;
-						break;
-					}
+//					if(status == TERMINATED) {
+//						//printf("I will set running to false\n");
+//						//running = false;
+//						waitForUpdate = false;
+//						break;
+//					}
 
 					waitForUpdate = false;
 					break;
@@ -406,12 +410,14 @@ void particle(chanend left, chanend right, chanend toVisualiser, int startPositi
 
 					if(status == TERMINATED) {
 						waitForUpdate = false;
-						break;
 					}
 
 					break;
 			}
 		}
+
+		if(!running)
+			continue;
 
 		// Report position unless terminating
 		if(status != TERMINATED) {
@@ -433,6 +439,7 @@ void particle(chanend left, chanend right, chanend toVisualiser, int startPositi
 		if(status == TERMINATED) {
 			printf("Got terminated\n");
 		}
+
 		else if(status == COLLISION) {
 			//printf("%d I guess i need to bumpt\n", startPosition);
 			toggleDirection(currentDirection);
@@ -468,8 +475,14 @@ void particle(chanend left, chanend right, chanend toVisualiser, int startPositi
 
 		// Read status from right
 		//printf("%d Send right\n", startPosition);
-		if(status != TERMINATED || !isMaster)
-			right <: status;
+		if(status == TERMINATED)
+		{
+			kills = true;
+			left <: TERMINATED;
+			continue;
+		}
+
+		right <: status;
 	}
 	printf("%d Particle terminates...\n", startPosition);
 }
