@@ -15,7 +15,6 @@ out port speaker = PORT_SPEAKER;
 
 //overall number of particles threads in the system
 #define noParticles 3
-
 // define move forbidden/allowed - make code more readible
 #define forbidden 1
 #define allowed 0
@@ -31,10 +30,10 @@ out port speaker = PORT_SPEAKER;
 #define maxCoreNo 3
 
 // Start position of n'th particle
-const int startPosition[noParticles] = {0, 3, 6};
+const int startPositions[noParticles] = {0, 3, 6};
 
 // Start directions of n'th  particles
-const int startDirection[noParticles] = {ACLKWISE, CLKWISE, ACLKWISE};
+const int startDirections[noParticles] = {ACLKWISE, CLKWISE, ACLKWISE};
 
 //numbers that function pinsneq returns that correspond to buttons
 #define buttonA 14
@@ -45,12 +44,12 @@ const int startDirection[noParticles] = {ACLKWISE, CLKWISE, ACLKWISE};
 enum {
 	RUNNING = 21,
 	PAUSED = 22,
-	TERMINATED = 23
+	TERMINATED = 23,
+	COLLISION = 30
 };
 
 //Particle speed setting
-#define PARTICLESPEED 8500000
-
+#define PARTICLESPEED 1000000
 // Delay buttons so you can click on them a bit 'slower'
 #define BUTTONDELAY 32000000
 
@@ -81,7 +80,7 @@ void showLED(out port p, chanend fromVisualiser) {
 				break;
 		}
 	}
-	//printf("Going to kill showLED\n");
+	printf("Going to kill showLED\n");
 }
 
 //send pattern to LEDs
@@ -137,25 +136,23 @@ void visualiser(chanend toButtons, chanend show[], chanend toQuadrant[], out por
 	cledR <: 1;
 
 	// Say it's synchronized initially - wait for input
-	for(int k = 0; k < noParticles; k++) {
-		synced[k] = true;
+	// Get initial positions
+	for(int i = 0; i < noParticles; i++) {
+		show[i] :> j;
+		display[i] = j;
 	}
 
+
 	while (running) {
-		waitMoment(PARTICLESPEED);
+
+		int resetInput = false;
 
 		// Check if buttons were pressed
 		select {
 			case toButtons :> input: {
-				printf("Vis got input %d\n", input);
-
-
-
-				if(previousInput != input) {
-					for(int i = 0; i < noParticles; i++) {
-						synced[i] = false;
-					}
-					previousInput = input;
+				printf("Vis got input %d, previous %d\n", input, previousInput);
+				for(int k = 0; k < noParticles; k++) {
+						synced[k] = false;
 				}
 				break;
 			}
@@ -164,84 +161,71 @@ void visualiser(chanend toButtons, chanend show[], chanend toQuadrant[], out por
 			}
 		}
 
-		if(input == TERMINATED && !started)
-		{
-			for(int k = 0; k < noParticles; k++)
-				show[k] <: TERMINATED;
-
-			running = false;
-			continue;
-		}
-
-		if(input == RUNNING && (!started || isPaused)) {
-			printf("Going to start\n");
-			for(int k = 0; k < noParticles; k++) {
-				show[k] <: RUNNING;
-				synced[k] = true;
-			}
-			started = true;
-			isPaused = false;
-		}
+		waitMoment(PARTICLESPEED);
+		//waitMoment(10000000);
 
 		for (int k=0;k<noParticles;k++) {
 
-			//int wasPauseSent = false;
-			select {
-				case show[k] :> j: {
+			if(input == RUNNING)
+			{
+
+				select {
+					case show[k] :> j: {
+						// Got a position to display
+						if (j < 12 && j >= 0) {
+							// Update displayed position
+							display[k] = j;
 
 
+								//printf("%d at position %d\n", k, j);
 
-					// Got a position to display
-					if (j<12) {
-						// Update displayed position
-						display[k] = j;
-					} else if(j == 1000) {
-						show[k] <: input;
-
-						if(input == TERMINATED)
-							synced[k] = true;
-//						if(input == PAUSED && !isPaused)
-//						{
-//							printf("%d Going to send pause\n", k);
-//							show[k] <: PAUSED;
-//						}
-					} else {
-						printf("Wierd input\n");
+							//if(input != 0)
+							show[k] <: input;
+						} else {
+							int requestedPosition = j - 1000;
+							int result = allowed;
+							for(int i = 0; i < noParticles; i++)
+							{
+								if(display[i] == requestedPosition)
+								{
+									show[i] <: COLLISION;
+									//printf("%d collided with %d\n", k, i);
+									result = forbidden;
+									break;
+								}
+							}
+							if(result == allowed) {
+								display[k] = requestedPosition;
+							}
+							show[k] <: result;
+						}
+						break;
 					}
-					break;
+					default:
+						break;
 				}
-				default: {
-					break;
-				}
-			}
-			//if(wasPauseSent)
-			//	break;
-
-			//visualise particles
-			for (int i=0;i<4;i++) {
-				j = 0;
-				for (int k=0;k<noParticles;k++)
-					j += (16<<(display[k]%3))*(display[k]/3==i);
-				toQuadrant[i] <: j;
 			}
 		}
 
-		if(input == PAUSED) {
-			isPaused = true;
-		} else if(input == TERMINATED) {
-			int canFinish;
-			for(int k = 0; k < noParticles;k++) {
-				canFinish = canFinish & synced[k];
+		// Visualise particles at their given position
+		for (int i=0;i<= maxCoreNo; i++) {
+			j = 0;
+
+			for (int k=0;k<noParticles;k++) {
+				j += (16<<(display[k]%3))*(display[k]/3==i);
 			}
 
-			if(canFinish)
-				running = false;
-			continue;
+			toQuadrant[i] <: j;
 		}
+
+
+
+		if(input == TERMINATED)
+			running = false;
 	}
 
-	printf("Going to kill visualiser\n");
-	for (int k=0;k<4;k++)
+	//printf("Going to kill visualiser\n");
+	for (int k=0; k<= maxCoreNo; k++)
 		toQuadrant[k] <: TERMINATED;
 }
 
@@ -365,163 +349,96 @@ void particle(chanend left, chanend right, chanend toVisualiser, int startPositi
 
 	int currentVelocity = 1;
 
+	// Is still simulating?
 	int running = true;
-	int started = false;
-	int paused = false;
 
-	int status = 0;
+	// Pause initially
+	int status = PAUSED;
 
 	// Display start position
 	toVisualiser <: startPosition;
 
-	while(running) {
+	if(startPositions[0] == startPosition)
+	{
+		printf("I am a master!\n");
+		right <: 0;
+	}
 
+
+	while(running) {
+		int gotStatus = 1;
+
+		// Pass status to the left
+		//printf("%d Wait left\n", startPosition);
+		while(gotStatus) {
+			select {
+				case left :> status:
+					gotStatus = 0;
+					break;
+				case toVisualiser :> status:
+					if(status == COLLISION) {
+						toggleDirection(currentDirection);
+						//printf("Someone collided with me!\n");
+					} else {
+						printf("TROLOOLOLOLO!\n");
+					}
+					break;
+			}
+		}
+
+		// Report position
+		//printf("%d Going to report position\n", startPosition);
+		toVisualiser <: position;
+
+		if(status != COLLISION) {
+		// Receive status
 		select {
 			case toVisualiser :> status:
-				printf("%d Got a status changed selected %d\n", startPosition, status);
+				//printf("%d Going synced\n", startPosition);
+				//gotStatus = true;
 				break;
-			default:
-				break;
+		//	default:
+		//		break;
+		}
 		}
 
-		//printf("%d Got a status changed selected %d\n", startPosition, status);
-		if(!started && status == RUNNING)
-			started = true;
+		if(status == COLLISION) {
+			//printf("%d I guess i need to bumpt\n", startPosition);
+			toggleDirection(currentDirection);
 
-		if(status == TERMINATED && !started)
-			break;
+		} else if(status == RUNNING) {
+			//printf("%d I am free to go!\n", startPosition);
 
-		if(!started) continue;
+			attemptedPosition = getAttemptedPosition(currentDirection, position);
 
-		select {
-			case left :> leftMoveForbidden: {
-				if(status == PAUSED) {
-					left <: PAUSED;
-				} else if(status == TERMINATED) {
-					left <: TERMINATED;
-				} else if(leftMoveForbidden == position) {
-					left <: forbidden;
-					toggleDirection(currentDirection);
-				} else {
-					left <: allowed;
-				}
-				break;
-			}
-			case right :> rightMoveForbidden: {
+			toVisualiser <: (attemptedPosition + 1000);
 
-				if(status == PAUSED) {
-					right <: PAUSED;
-				} else if(status == TERMINATED) {
-					right <: TERMINATED;
-				} else if(rightMoveForbidden == position) {
-					right <: forbidden;
-					toggleDirection(currentDirection);
-				} else {
-					right <: allowed;
-				}
+			toVisualiser :> rightMoveForbidden;
 
-				break;
-			}
-			default: {
-
-				if(status == PAUSED || status == TERMINATED)
-					break;
-
-				attemptedPosition = getAttemptedPosition(currentDirection, position);
-
+			if(rightMoveForbidden == allowed)
+				position = attemptedPosition;
+			else
+			{
 				if(currentDirection == CLKWISE) {
-
-					// Ask
-					left <: attemptedPosition;
-
-					// Get answer
-					left :> leftMoveForbidden;
-
-					if(leftMoveForbidden == allowed) {
-						position = attemptedPosition;
-
-						// check if status changed
-//						select {
-//							case toVisualiser :> status:
-//								break;
-//							default:
-//								break;
-//						}
-
-						if(status == RUNNING) {
-							toVisualiser <: position;
-							toVisualiser <: 1000;
-							toVisualiser :> status;
-							break;
-						}
-
-					} else if(leftMoveForbidden == PAUSED) {
-						status = PAUSED;
-						break;
-					} else if(leftMoveForbidden == TERMINATED) {
-						status = TERMINATED;
-						break;
-					} else {
-						toggleDirection(currentDirection);
-					}
-
-				} else {
-
-					right <: attemptedPosition;
-					right :> rightMoveForbidden;
-
-					if(rightMoveForbidden == allowed) {
-						position = attemptedPosition;
-
-						// check if status changed
-					/*	select {
-							case toVisualiser :> status:
-								break;
-							default:
-								break;
-						}*/
-
-						if(status == RUNNING) {
-							toVisualiser <: position;
-							// synch
-							toVisualiser <: 1000;
-							toVisualiser :> status;
-							break;
-						}
-
-					} else if(rightMoveForbidden == PAUSED) {
-						status = PAUSED;
-						break;
-					} else if(rightMoveForbidden == TERMINATED) {
-						status = TERMINATED;
-						break;
-					} else {
-						toggleDirection(currentDirection);
-					}
+					//int newStatus = ((status << 2) & COLLISION);
+					//printf("%d One to me left should change dir\n", startPosition);
+				} else  {
+					//printf("%d One to me right should change dir\n", startPosition);
 				}
-
-				break;
-			} // default
-		} // select
-
-		if(status == TERMINATED)
-		{
-			select {
-				case left :> leftMoveForbidden:
-					left <: TERMINATED;
-					break;
-				case right :> rightMoveForbidden:
-					right <: TERMINATED;
-					break;
-				default:
-					break;
+				toggleDirection(currentDirection);
 			}
-			running = false;
 		}
 
 
+		// Read status from right
+		//printf("%d Send right\n", startPosition);
+		right <: status;
+
+		// Check if terminating
+		if(status == TERMINATED)
+			running = false;
 	}
-	printf("Particle terminates...\n");
+	printf("%d Particle terminates...\n", startPosition);
 }
 
 //MAIN PROCESS defining channels, orchestrating and starting the threads
@@ -548,7 +465,7 @@ int main(void) {
 
 			on stdcore[i % maxCoreNo] : particle(neighbours[(i==0) ? noParticles - 1 : i - 1],
 					neighbours[(i == (noParticles - 1)) ? 0 : i + 1],
-					show[i], startPosition[i], startDirection[i]);
+					show[i], startPositions[i], startDirections[i]);
 		}
 
 		//VISUALISER THREAD
