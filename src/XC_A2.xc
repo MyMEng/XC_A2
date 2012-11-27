@@ -81,7 +81,7 @@ void showLED(out port p, chanend fromVisualiser) {
 				break;
 		}
 	}
-	printf("Going to kill showLED\n");
+	//printf("Going to kill showLED\n");
 }
 
 //send pattern to LEDs
@@ -168,7 +168,7 @@ void visualiser(chanend toButtons, chanend show[], chanend toQuadrant[], out por
 			}
 
 			if(stop) {
-				printf("Stop.\n");
+				//printf("Stop.\n");
 				running = false;
 				continue;
 			}
@@ -253,7 +253,7 @@ void visualiser(chanend toButtons, chanend show[], chanend toQuadrant[], out por
 	}
 
 
-	printf("Going to kill visualiser\n");
+	//printf("Going to kill visualiser\n");
 
 //	for (int k=0;k<noParticles;k++) {
 //		show[k] :> j;
@@ -399,7 +399,7 @@ void particle(chanend left, chanend right, chanend toVisualiser, int startPositi
 	isMaster = startPositions[0] == startPosition;
 	if(isMaster)
 	{
-		printf("I am a master!\n");
+		//printf("I am a master!\n");
 		right <: 0;
 	}
 
@@ -413,7 +413,7 @@ void particle(chanend left, chanend right, chanend toVisualiser, int startPositi
 		while(waitForUpdate) {
 			select {
 				case right :> status:
-					printf("Got terminated\n");
+					//printf("Got terminated\n");
 					waitForUpdate = false;
 					if(kills == false) {
 						// not a killer, pass it
@@ -438,13 +438,13 @@ void particle(chanend left, chanend right, chanend toVisualiser, int startPositi
 					//printf("got some update!\n");
 					if(status == COLLISION) {
 						toggleDirection(currentDirection);
-						printf("Someone collided with me!\n");
+						//printf("Someone collided with me!\n");
 					} else {
-						printf("TROLOOLOLOLO!\n");
+						//printf("TROLOOLOLOLO!\n");
 					}
 
 					if(status == TERMINATED) {
-						printf("Got terminated\n");
+						//printf("Got terminated\n");
 
 						waitForUpdate = false;
 					}
@@ -474,7 +474,7 @@ void particle(chanend left, chanend right, chanend toVisualiser, int startPositi
 		}
 
 		if(status == TERMINATED) {
-			printf("Got terminated\n");
+			//printf("Got terminated\n");
 		}
 
 		else if(status == COLLISION) {
@@ -492,7 +492,7 @@ void particle(chanend left, chanend right, chanend toVisualiser, int startPositi
 
 			if(rightMoveForbidden == TERMINATED) {
 				status = TERMINATED;
-				printf("Got terminated\n");
+				//printf("Got terminated\n");
 			}
 			else if(rightMoveForbidden == allowed)
 				position = attemptedPosition;
@@ -520,7 +520,7 @@ void particle(chanend left, chanend right, chanend toVisualiser, int startPositi
 
 		right <: status;
 	}
-	printf("%d Particle terminates...\n", startPosition);
+	//printf("%d Particle terminates...\n", startPosition);
 }
 
 //MAIN PROCESS defining channels, orchestrating and starting the threads
