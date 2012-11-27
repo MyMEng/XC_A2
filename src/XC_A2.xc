@@ -14,7 +14,7 @@ in port buttons = PORT_BUTTON;
 out port speaker = PORT_SPEAKER;
 
 //overall number of particles threads in the system
-#define noParticles 3
+#define noParticles 5
 // define move forbidden/allowed - make code more readible
 #define forbidden 1
 #define allowed 0
@@ -28,12 +28,13 @@ out port speaker = PORT_SPEAKER;
 
 // No of cores
 #define maxCoreNo 3
+#define numberOfCores 4
 
 // Start position of n'th particle
-const int startPositions[noParticles] = {0, 3, 6};
+const int startPositions[noParticles] = {0, 3, 6, 8, 10};
 
 // Start directions of n'th  particles
-const int startDirections[noParticles] = {ACLKWISE, CLKWISE, ACLKWISE};
+const int startDirections[noParticles] = {ACLKWISE, CLKWISE, ACLKWISE, CLKWISE, ACLKWISE};
 
 //numbers that function pinsneq returns that correspond to buttons
 #define buttonA 14
@@ -49,11 +50,11 @@ enum {
 	KILL = 66
 };
 
-//Particle speed setting
-#define PARTICLESPEED 50000
+//Particle max speed setting
+#define MAXPARTICLESPEED 275000
 
 
-const unsigned int speed[noParticles] = {50, 35, 25};
+const unsigned int speed[noParticles] = {3, 5, 7, 12, 15};
 
 // Delay buttons so you can click on them a bit 'slower'
 #define BUTTONDELAY 32000000
@@ -110,6 +111,16 @@ void waitMoment(uint myTime) {
 	tmr when timerafter(waitTime) :> void;
 }
 
+//Function that counts waitMoment for visualiser
+inline unsigned int particleSpeed() {
+	int s = 0;
+	for(int i = 0; i < noParticles; i++) {
+		s = s *MAXPARTICLESPEED * speed[i];
+	}
+	return s;
+}
+
+
 ///////////////////////////////////////////////////////////////////////////////////////// //
 // RELEVANT PART OF CODE TO EXPAND
 // /////////////////////////////////////////////////////////////////////////////////////////
@@ -132,7 +143,7 @@ void visualiser(chanend toButtons, chanend show[], chanend toQuadrant[], out por
 	int input = 0;
 
 	// Flash red leds
-	cledR <: 1;
+	cledG <: 1;
 
 	// Say it's synchronized initially - wait for input
 	// Get initial positions
@@ -146,7 +157,6 @@ void visualiser(chanend toButtons, chanend show[], chanend toQuadrant[], out por
 		// Check if buttons were pressed
 		select {
 			case toButtons :> input:
-
 				break;
 			default:
 				break;
@@ -178,10 +188,11 @@ void visualiser(chanend toButtons, chanend show[], chanend toQuadrant[], out por
 			}
 		}
 
-		waitMoment(PARTICLESPEED);
+		//waitMoment(particleSpeed());
+		waitMoment(MAXPARTICLESPEED);
 
 
-		for (int k=0;k<noParticles;k++) {
+		for (int k=0; k<noParticles; k++) {
 
 			if(input == RUNNING || input == TERMINATED)
 			{
@@ -234,11 +245,11 @@ void visualiser(chanend toButtons, chanend show[], chanend toQuadrant[], out por
 		}
 
 		// Visualise particles at their given position
-		for (int i=0;i<= maxCoreNo; i++) {
+		for (int i=0; i<= maxCoreNo; i++) {
 
 			j = 0;
 
-			for (int k=0;k<noParticles;k++) {
+			for (int k=0; k<noParticles; k++) {
 				if(display[k] == TERMINATED)
 					j = 0;
 				else {
@@ -432,19 +443,13 @@ void particle(chanend left, chanend right, chanend toVisualiser, int startPositi
 					break;
 				case left :> status:
 
-					// Check if terminating
-//					if(status == TERMINATED) {
-//						//printf("I will set running to false\n");
-//						//running = false;
-//						waitForUpdate = false;
-//						break;
-//					}
+					//printf("I am %d got from left: %d\n",  startPosition, status);
 
 					waitForUpdate = false;
 					break;
 				case toVisualiser :> status:
 
-					//printf("got some update!\n");
+					//printf("%d got some update!\n", startPosition);
 					if(status == COLLISION) {
 						toggleDirection(currentDirection);
 						//printf("Someone collided with me!\n");
@@ -564,8 +569,8 @@ int main(void) {
 
 		par(int i = 0; i < noParticles; i++) {
 
-			on stdcore[i % maxCoreNo] : particle(neighbours[(i==0) ? noParticles - 1 : i - 1],
-					neighbours[(i == (noParticles - 1)) ? 0 : i + 1],
+			on stdcore[i % maxCoreNo] : particle(neighbours[(i + (noParticles- 1))%noParticles],
+					neighbours[(i + 1)%noParticles],
 					show[i], startPositions[i], startDirections[i], speed[i]);
 		}
 
@@ -573,8 +578,8 @@ int main(void) {
 		on stdcore[0]: visualiser(buttonToVisualiser, show, quadrant, speaker);
 
 		//REPLICATION FOR THREADS PERFORMING LED VISUALISATION
-		par (int k=0;k<4;k++) {
-			on stdcore[k%4]: showLED(cled[k],quadrant[k]);
+		par (int k=0; k<numberOfCores; k++) {
+			on stdcore[k%numberOfCores]: showLED(cled[k],quadrant[k]);
 		}
 	}
 	return 0;
