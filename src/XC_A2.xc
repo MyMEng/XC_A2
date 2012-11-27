@@ -50,7 +50,11 @@ enum {
 };
 
 //Particle speed setting
-#define PARTICLESPEED 2500000
+#define PARTICLESPEED 50000
+
+
+const unsigned int speed[noParticles] = {50, 35, 25};
+
 // Delay buttons so you can click on them a bit 'slower'
 #define BUTTONDELAY 32000000
 
@@ -174,13 +178,14 @@ void visualiser(chanend toButtons, chanend show[], chanend toQuadrant[], out por
 			}
 		}
 
-
 		waitMoment(PARTICLESPEED);
+
 
 		for (int k=0;k<noParticles;k++) {
 
 			if(input == RUNNING || input == TERMINATED)
 			{
+
 
 				select {
 					case show[k] :> j: {
@@ -225,17 +230,20 @@ void visualiser(chanend toButtons, chanend show[], chanend toQuadrant[], out por
 						break;
 				}
 			}
+
 		}
 
 		// Visualise particles at their given position
 		for (int i=0;i<= maxCoreNo; i++) {
+
 			j = 0;
 
 			for (int k=0;k<noParticles;k++) {
 				if(display[k] == TERMINATED)
 					j = 0;
-				else
+				else {
 					j += (16<<(display[k]%3))*(display[k]/3==i);
+				}
 			}
 
 			toQuadrant[i] <: j;
@@ -366,7 +374,7 @@ int getAttemptedPosition(int direction, int position) {
 
 
 //PARTICLE...thread to represent a particle - to be replicated noParticle-times
-void particle(chanend left, chanend right, chanend toVisualiser, int startPosition, int startDirection) {
+void particle(chanend left, chanend right, chanend toVisualiser, int startPosition, int startDirection, int startVelocity) {
 
 	//overall no of moves performed by particle so far
 	unsigned int moveCounter = 0;
@@ -392,6 +400,7 @@ void particle(chanend left, chanend right, chanend toVisualiser, int startPositi
 
 	int isMaster = false;
 	int kills = false;
+	int skip = startVelocity;
 
 	// Display start position
 	toVisualiser <: startPosition;
@@ -482,30 +491,40 @@ void particle(chanend left, chanend right, chanend toVisualiser, int startPositi
 			toggleDirection(currentDirection);
 
 		} else if(status == RUNNING) {
-			//printf("%d I am free to go!\n", startPosition);
 
-			attemptedPosition = getAttemptedPosition(currentDirection, position);
+			if(skip > 0) {
+				skip--;
+			} else {
+				skip = startVelocity;
 
-			toVisualiser <: (attemptedPosition + 1000);
+				//printf("%d I am free to go!\n", startPosition);
 
-			toVisualiser :> rightMoveForbidden;
+				attemptedPosition = getAttemptedPosition(currentDirection, position);
 
-			if(rightMoveForbidden == TERMINATED) {
-				status = TERMINATED;
-				//printf("Got terminated\n");
-			}
-			else if(rightMoveForbidden == allowed)
-				position = attemptedPosition;
-			else
-			{
-				if(currentDirection == CLKWISE) {
-					//int newStatus = ((status << 2) & COLLISION);
-					//printf("%d One to me left should change dir\n", startPosition);
-				} else  {
-					//printf("%d One to me right should change dir\n", startPosition);
+				toVisualiser <: (attemptedPosition + 1000);
+
+				toVisualiser :> rightMoveForbidden;
+
+				if(rightMoveForbidden == TERMINATED) {
+					status = TERMINATED;
+					//printf("Got terminated\n");
 				}
-				toggleDirection(currentDirection);
+				else if(rightMoveForbidden == allowed)
+					position = attemptedPosition;
+				else
+				{
+					if(currentDirection == CLKWISE) {
+						//int newStatus = ((status << 2) & COLLISION);
+						//printf("%d One to me left should change dir\n", startPosition);
+					} else  {
+						//printf("%d One to me right should change dir\n", startPosition);
+					}
+					toggleDirection(currentDirection);
+				}
+
+
 			}
+
 		}
 
 
@@ -547,7 +566,7 @@ int main(void) {
 
 			on stdcore[i % maxCoreNo] : particle(neighbours[(i==0) ? noParticles - 1 : i - 1],
 					neighbours[(i == (noParticles - 1)) ? 0 : i + 1],
-					show[i], startPositions[i], startDirections[i]);
+					show[i], startPositions[i], startDirections[i], speed[i]);
 		}
 
 		//VISUALISER THREAD
