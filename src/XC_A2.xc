@@ -31,10 +31,10 @@ out port speaker = PORT_SPEAKER;
 #define numberOfCores 4
 
 // Start position of n'th particle
-const int startPositions[noParticles] = {0, 3, 6, 8, 10};
+const int startPositions[noParticles] = {0, 3, 6, 8, 10};//, 2};
 
 // Start directions of n'th  particles
-const int startDirections[noParticles] = {ACLKWISE, CLKWISE, ACLKWISE, CLKWISE, ACLKWISE};
+const int startDirections[noParticles] = {ACLKWISE, CLKWISE, ACLKWISE, CLKWISE, ACLKWISE};//, CLKWISE};
 
 //numbers that function pinsneq returns that correspond to buttons
 #define buttonA 14
@@ -54,7 +54,7 @@ enum {
 #define MAXPARTICLESPEED 275000
 
 
-const unsigned int speed[noParticles] = {3, 5, 7, 12, 15};
+const unsigned int speed[noParticles] = {3, 5, 7, 12, 15};//, 25};
 
 // Delay buttons so you can click on them a bit 'slower'
 #define BUTTONDELAY 32000000
@@ -91,7 +91,8 @@ void showLED(out port p, chanend fromVisualiser) {
 
 //send pattern to LEDs
 //PLAYS a short sound (pls use with caution and consideration to other students in the labs!)
-void playSound(unsigned int wavelength, int duration, out port speaker) { timer tmr;
+void playSound(unsigned int wavelength, int duration, out port speaker) {
+	timer tmr;
 	int t, isOn = 1;
 	tmr :> t;
 	for (int i=0; i<duration; i++) {
