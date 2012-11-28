@@ -138,16 +138,14 @@ void visualiser(chanend toButtons, chanend show[], chanend toQuadrant[], out por
 	//helper variable to determine system shutdown
 	unsigned int running = true;
 
-	// is paused?
-	int isPaused = false;
-
 	//helper variable
 	int j;
 
 	// Input from buttons
-	int input = 0;
+	int input = PAUSED;
 
-	// Flash red leds
+	// Flash red initally
+	cledR <: 0;
 	cledG <: 1;
 
 	// Say it's synchronized initially - wait for input
@@ -167,11 +165,6 @@ void visualiser(chanend toButtons, chanend show[], chanend toQuadrant[], out por
 				break;
 		}
 
-		if(input == PAUSED) {
-			isPaused = true;
-		} else if(input == RUNNING) {
-			isPaused = false;
-		}
 
 		if(input == TERMINATED) {
 			int stop;
@@ -249,6 +242,12 @@ void visualiser(chanend toButtons, chanend show[], chanend toQuadrant[], out por
 			}
 
 		}
+
+
+
+		// Tell status of game by color of leds
+		cledG <: input == PAUSED;
+		cledR <: input != PAUSED;
 
 		// Visualise particles at their given position
 		for (int i=0; i<= maxCoreNo; i++) {
