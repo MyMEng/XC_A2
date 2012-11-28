@@ -14,7 +14,11 @@ in port buttons = PORT_BUTTON;
 out port speaker = PORT_SPEAKER;
 
 //overall number of particles threads in the system
-#define noParticles 5
+#define noParticles 4
+
+//max particles to display
+#define maxParticles 5
+
 // define move forbidden/allowed - make code more readible
 #define forbidden 1
 #define allowed 0
@@ -31,10 +35,13 @@ out port speaker = PORT_SPEAKER;
 #define numberOfCores 4
 
 // Start position of n'th particle
-const int startPositions[noParticles] = {0, 3, 6, 8, 10};//, 2};
+const int startPositions[maxParticles] = {0, 3, 6, 8, 10};//, 2};
 
 // Start directions of n'th  particles
-const int startDirections[noParticles] = {ACLKWISE, CLKWISE, ACLKWISE, CLKWISE, ACLKWISE};//, CLKWISE};
+const int startDirections[maxParticles] = {ACLKWISE, CLKWISE, ACLKWISE, CLKWISE, ACLKWISE};//, CLKWISE};
+
+// Start speed of particles
+const unsigned int speed[maxParticles] = {10, 11, 12, 12, 15};//, 25};
 
 //numbers that function pinsneq returns that correspond to buttons
 #define buttonA 14
@@ -52,9 +59,6 @@ enum {
 
 //Particle max speed setting
 #define MAXPARTICLESPEED 275000
-
-
-const unsigned int speed[noParticles] = {3, 5, 7, 12, 15};//, 25};
 
 // Delay buttons so you can click on them a bit 'slower'
 #define BUTTONDELAY 32000000
@@ -221,6 +225,7 @@ void visualiser(chanend toButtons, chanend show[], chanend toQuadrant[], out por
 										show[i] <: TERMINATED;
 									} else {
 										show[i] <: COLLISION;
+										playSound(200000, 5, speaker);
 									}
 									result = forbidden;
 									break;
@@ -428,7 +433,6 @@ void particle(chanend left, chanend right, chanend toVisualiser, int startPositi
 	while(running) {
 		int waitForUpdate = true;
 
-
 		// Pass status to the left
 		//printf("%d Wait left\n", startPosition);
 		while(waitForUpdate) {
@@ -453,14 +457,10 @@ void particle(chanend left, chanend right, chanend toVisualiser, int startPositi
 					//printf("%d got some update!\n", startPosition);
 					if(status == COLLISION) {
 						toggleDirection(currentDirection);
-						//printf("Someone collided with me!\n");
-					} else {
-						//printf("TROLOOLOLOLO!\n");
 					}
 
 					if(status == TERMINATED) {
 						//printf("Got terminated\n");
-
 						waitForUpdate = false;
 					}
 
@@ -478,21 +478,16 @@ void particle(chanend left, chanend right, chanend toVisualiser, int startPositi
 
 		if(status != COLLISION && status != TERMINATED) {
 		// Receive status
-		select {
-			case toVisualiser :> status:
-				//printf("%d Going synced\n", startPosition);
-				//gotStatus = true;
-				break;
-		//	default:
-		//		break;
-		}
+			select {
+				case toVisualiser :> status:
+					//printf("%d Going synced\n", startPosition);
+					break;
+			}
 		}
 
 		if(status == TERMINATED) {
-			//printf("Got terminated\n");
-		}
-
-		else if(status == COLLISION) {
+			// Do nothing...
+		} else if(status == COLLISION) {
 			//printf("%d I guess i need to bumpt\n", startPosition);
 			toggleDirection(currentDirection);
 
@@ -543,6 +538,7 @@ void particle(chanend left, chanend right, chanend toVisualiser, int startPositi
 			continue;
 		}
 
+		//printf("I am %d, sending to right: %d\n",  startPosition, status);
 		right <: status;
 	}
 	//printf("%d Particle terminates...\n", startPosition);
@@ -570,10 +566,14 @@ int main(void) {
 
 		par(int i = 0; i < noParticles; i++) {
 
-			on stdcore[i % maxCoreNo] : particle(neighbours[(i + (noParticles- 1))%noParticles],
-					neighbours[(i + 1)%noParticles],
+			on stdcore[i % maxCoreNo] : particle(neighbours[ (i - 1 + noParticles)%noParticles], neighbours[i%noParticles],
 					show[i], startPositions[i], startDirections[i], speed[i]);
 		}
+
+//		on stdcore[0] : particle(neighbours[3], neighbours[0], show[0], startPositions[0], startDirections[0], speed[0]);
+//		on stdcore[1] : particle(neighbours[0], neighbours[1], show[1], startPositions[1], startDirections[1], speed[1]);
+//		on stdcore[2] : particle(neighbours[1], neighbours[2], show[2], startPositions[2], startDirections[2], speed[2]);
+//		on stdcore[3] : particle(neighbours[2], neighbours[3], show[3], startPositions[3], startDirections[3], speed[3]);
 
 		//VISUALISER THREAD
 		on stdcore[0]: visualiser(buttonToVisualiser, show, quadrant, speaker);
