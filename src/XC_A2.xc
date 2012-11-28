@@ -36,13 +36,12 @@ out port buttonLed = PORT_BUTTONLED;
 #define numberOfCores 4
 
 // Start position of n'th particle
-const int startPositions[maxParticles] = {0, 3, 6, 8, 10};//, 2};
-
+const int startPositions[maxParticles] = {0, 3, 6, 8, 10};
 // Start directions of n'th  particles
-const int startDirections[maxParticles] = {ACLKWISE, CLKWISE, ACLKWISE, CLKWISE, ACLKWISE};//, CLKWISE};
+const int startDirections[maxParticles] = {ACLKWISE, CLKWISE, ACLKWISE, CLKWISE, ACLKWISE};
 
 // Start speed of particles
-const unsigned int speed[maxParticles] = {10, 11, 12, 12, 15};//, 25};
+const unsigned int speed[maxParticles] = {5, 13, 20, 31, 15};
 
 //numbers that function pinsneq returns that correspond to buttons
 #define buttonA 14
@@ -51,11 +50,15 @@ const unsigned int speed[maxParticles] = {10, 11, 12, 12, 15};//, 25};
 #define buttonD 7
 
 enum {
+	NOTSTARTED = 20,
 	RUNNING = 21,
 	PAUSED = 22,
 	TERMINATED = 23,
 	COLLISION = 30,
-	KILL = 66
+	KILL = 66,
+	MOVE_LEFT = 70,
+	MOVE_RIGHT = 71,
+	NEXT_PARTICLE = 72
 };
 
 //Particle max speed setting
@@ -142,8 +145,20 @@ void visualiser(chanend toButtons, chanend show[], chanend toQuadrant[], out por
 	//helper variable
 	int j;
 
+	// Currently 'edited' particle
+	int part = 0;
+
+	// Attempted position in 'edit' mode
+	int attempted;
+
+	// Info about start position that might be sent to a particle
+	int info = 0;
+
 	// Input from buttons
-	int input = PAUSED;
+	int input = NOTSTARTED;
+
+	// Has simulation started
+	int started = false;
 
 	// Flash red initally
 	cledR <: 0;
@@ -161,11 +176,92 @@ void visualiser(chanend toButtons, chanend show[], chanend toQuadrant[], out por
 		// Check if buttons were pressed
 		select {
 			case toButtons :> input:
+				//printf("Got input: %d\n", input);
 				break;
 			default:
 				break;
 		}
 
+		// If not running, set up particle position
+		switch(input) {
+			case MOVE_LEFT:
+				// Move current particle to the left
+				attempted = display[part] + 1;
+
+				// Move by two or more if positions are taken
+				while(true) {
+					int next = false;
+					if(attempted == -1) {
+						attempted = 11;
+					} else if(attempted == 12) {
+						attempted = 0;
+					}
+
+					for(int i = 0; i < noParticles; i++) {
+						if(display[i] == attempted) {
+							next = true;
+							attempted++;
+							break;
+						}
+					}
+					if(next) continue;
+					break;
+				}
+
+				display[part] = attempted;
+
+				input = NOTSTARTED;
+				continue;
+				break;
+			case MOVE_RIGHT:
+				// Move current particle to the right
+
+				attempted = display[part] - 1;
+
+				while(true) {
+					int next = false;
+					if(attempted == -1) {
+						attempted = 11;
+					} else if(attempted == 12) {
+						attempted = 0;
+					}
+
+					for(int i = 0; i < noParticles; i++) {
+						if(display[i] == attempted) {
+							next = true;
+							attempted--;
+							continue;
+						}
+					}
+					if(next) continue;
+					break;
+				}
+				display[part] = attempted;
+				input = NOTSTARTED;
+				continue;
+				break;
+			case NEXT_PARTICLE:
+				// Send to particle
+				info = display[part];
+				info = info << 8;
+
+				// Add an id
+				info += 33;
+
+				// Send to particle
+				show[part] <: info;
+
+				// Change particle
+				part++;
+				if(part >= noParticles)
+					part = 0;
+				// Reset input
+				input = NOTSTARTED;
+				continue;
+				break;
+			default:
+				break;
+		}
 
 		if(input == TERMINATED) {
 			int stop;
@@ -190,15 +286,26 @@ void visualiser(chanend toButtons, chanend show[], chanend toQuadrant[], out por
 		//waitMoment(particleSpeed());
 		waitMoment(MAXPARTICLESPEED);
 
+		// Let particles know that simulation has started
+		if(!started && input == RUNNING) {
+			//printf("Going to start\n");
+			started = true;
+			for(int i = 0; i < noParticles; i++) {
+				//printf("Got send start to : %d\n", i);
+				show[i] <: RUNNING;
+				//printf("Sent running...\n");
+			}
+			continue;
+		}
 
 		for (int k=0; k<noParticles; k++) {
 
 			if(input == RUNNING || input == TERMINATED)
 			{
-
-
 				select {
 					case show[k] :> j: {
+						//printf("Someone wants sth: %d\n",j);
+
 						// Got a position to display
 						if (j < 12 && j >= 0) {
 							// Update displayed position
@@ -228,9 +335,10 @@ void visualiser(chanend toButtons, chanend show[], chanend toQuadrant[], out por
 							if(result == allowed) {
 								display[k] = requestedPosition;
 							}
-							if(input != TERMINATED)
+							if(input != TERMINATED){
+								//printf("Sending result back\n");
 								show[k] <: result;
-							else {
+							}else {
 								show[k] <: TERMINATED;
 								display[k] = TERMINATED;
 							}
@@ -247,8 +355,8 @@ void visualiser(chanend toButtons, chanend show[], chanend toQuadrant[], out por
 
 
 		// Tell status of game by color of leds
-		cledG <: input == PAUSED;
-		cledR <: input != PAUSED;
+		cledG <: input == PAUSED || input == NOTSTARTED;
+		cledR <: input != PAUSED && input != NOTSTARTED;
 
 		// Visualise particles at their given position
 		for (int i=0; i<= maxCoreNo; i++) {
@@ -340,19 +448,26 @@ void buttonListener(in port buttons, chanend toVisualiser) {
 						toVisualiser <: PAUSED;
 					}
 				}
+				else {
+					toVisualiser <: MOVE_LEFT;
+				}
 				break;
 			case buttonC:
 				//HALT
-				simulationStarted = false;
-				simulationPaused = false;
-				toVisualiser <: TERMINATED;
-				running = false;
+				if(simulationStarted) {
+					simulationStarted = false;
+					simulationPaused = false;
+					toVisualiser <: TERMINATED;
+					running = false;
+				} else {
+					toVisualiser <: MOVE_RIGHT;
+				}
 				break;
 			case buttonD:
-				if(simulationStarted) {}
-					//Thing
-				else {}
-					//BEFORE START - NUMBER OF PARTICLES
+				if(!simulationStarted) {
+					toVisualiser <: NEXT_PARTICLE;
+				}
+
 				break;
 			default:
 				break;
@@ -418,18 +533,50 @@ void particle(chanend left, chanend right, chanend toVisualiser, int startPositi
 	int kills = false;
 	int skip = startVelocity;
 
+	// Used to check if information from visualiser is initial position
+	int info;
+
+	// Has simulation started?
+	int started = false;
+
 	// Display start position
 	toVisualiser <: startPosition;
 
 	isMaster = startPositions[0] == startPosition;
+
+	while(!started) {
+		select {
+			case toVisualiser :> info:
+				if(info == RUNNING) {
+					//printf("Got running from vis.\n");
+					started = true;
+					status = RUNNING;
+					break;
+				} else if(info == TERMINATED) {
+					//printf("Got term from vis.\n");
+					started = true;
+					running = false;
+					break;
+				}
+				else if((info & 0xFF) == 33) {
+					position = (info >> 8);
+					break;
+				}
+			break;
+			default:
+				break;
+		}
+
+	}
+
 	if(isMaster)
 	{
 		//printf("I am a master!\n");
-		right <: 0;
+		right <: status;
 	}
 
-
 	while(running) {
+
 		int waitForUpdate = true;
 
 		// Pass status to the left
@@ -446,14 +593,13 @@ void particle(chanend left, chanend right, chanend toVisualiser, int startPositi
 					running = false;
 					break;
 				case left :> status:
-
-					//printf("I am %d got from left: %d\n",  startPosition, status);
-
+					//printf("%d gOT FROM LEFT left %d\n", startPosition, status);
 					waitForUpdate = false;
 					break;
 				case toVisualiser :> status:
 
-					//printf("%d got some update!\n", startPosition);
+					//printf("%d got some update! %d\n", startPosition, status);
+
 					if(status == COLLISION) {
 						toggleDirection(currentDirection);
 					}
@@ -470,8 +616,11 @@ void particle(chanend left, chanend right, chanend toVisualiser, int startPositi
 		if(!running)
 			continue;
 
+		//printf("%d status %d\n", startPosition, status);
+
 		// Report position unless terminating
 		if(status != TERMINATED) {
+			//printf("%d Going to get synced\n", startPosition);
 			toVisualiser <: position;
 		}
 
@@ -479,7 +628,7 @@ void particle(chanend left, chanend right, chanend toVisualiser, int startPositi
 		// Receive status
 			select {
 				case toVisualiser :> status:
-					//printf("%d Going synced\n", startPosition);
+					//printf("%d Got synced\n", startPosition);
 					break;
 			}
 		}
@@ -487,7 +636,7 @@ void particle(chanend left, chanend right, chanend toVisualiser, int startPositi
 		if(status == TERMINATED) {
 			// Do nothing...
 		} else if(status == COLLISION) {
-			//printf("%d I guess i need to bumpt\n", startPosition);
+			////printf("%d I guess i need to bumpt\n", startPosition);
 			toggleDirection(currentDirection);
 
 		} else if(status == RUNNING) {
