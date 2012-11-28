@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <platform.h>
 
+//Ports definitions
 out port cled[4] = {PORT_CLOCKLED_0,PORT_CLOCKLED_1,PORT_CLOCKLED_2,PORT_CLOCKLED_3};
 out port cledG = PORT_CLOCKLED_SELG;
 out port cledR = PORT_CLOCKLED_SELR;
@@ -24,10 +25,11 @@ out port buttonLed = PORT_BUTTONLED;
 #define forbidden 1
 #define allowed 0
 
-// true/false
+//define true/false
 #define true 1
 #define false 0
 
+//define directions
 #define CLKWISE 1
 #define ACLKWISE -1
 
@@ -37,6 +39,7 @@ out port buttonLed = PORT_BUTTONLED;
 
 // Start position of n'th particle
 const int startPositions[maxParticles] = {0, 3, 6, 8, 10};
+
 // Start directions of n'th  particles
 const int startDirections[maxParticles] = {ACLKWISE, CLKWISE, ACLKWISE, CLKWISE, ACLKWISE};
 
@@ -49,6 +52,7 @@ const unsigned int speed[maxParticles] = {5, 13, 20, 31, 15};
 #define buttonC 11
 #define buttonD 7
 
+//define flags to control simulation
 enum {
 	NOTSTARTED = 20,
 	RUNNING = 21,
@@ -67,21 +71,18 @@ enum {
 // Delay buttons so you can click on them a bit 'slower'
 #define BUTTONDELAY 3200000
 
-// Define bool, true and false
-//typedef unsigned int bool;
-//#define true 1
-//#define false 0
-
-///////////////////////////////////////////////////////////////////////////////////////// //
+////////////////////////////////////////////////////////////////////////////////////////////
 // Helper Functions provided for you
-// /////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////
+
+//send pattern to LEDs
 //DISPLAYS an LED pattern in one quadrant of the clock LEDs
 void showLED(out port p, chanend fromVisualiser) {
 	unsigned int lightUpPattern;
 	unsigned int running = 1;
 	while (running) {
 		select {
-			case fromVisualiser :> lightUpPattern: {//read LED pattern from visualiser process
+			case fromVisualiser :> lightUpPattern: {
 				if(lightUpPattern == TERMINATED) {
 					p <: 0;
 					running = false;
@@ -94,10 +95,8 @@ void showLED(out port p, chanend fromVisualiser) {
 				break;
 		}
 	}
-	//printf("Going to kill showLED\n");
 }
 
-//send pattern to LEDs
 //PLAYS a short sound (pls use with caution and consideration to other students in the labs!)
 void playSound(unsigned int wavelength, int duration, out port speaker) {
 	timer tmr;
@@ -133,6 +132,7 @@ inline unsigned int particleSpeed() {
 ///////////////////////////////////////////////////////////////////////////////////////// //
 // RELEVANT PART OF CODE TO EXPAND
 // /////////////////////////////////////////////////////////////////////////////////////////
+
 //PROCESS TO COORDINATE DISPLAY of LED Particles
 void visualiser(chanend toButtons, chanend show[], chanend toQuadrant[], out port speaker) {
 
@@ -176,7 +176,6 @@ void visualiser(chanend toButtons, chanend show[], chanend toQuadrant[], out por
 		// Check if buttons were pressed
 		select {
 			case toButtons :> input:
-				//printf("Got input: %d\n", input);
 				break;
 			default:
 				break;
@@ -277,7 +276,6 @@ void visualiser(chanend toButtons, chanend show[], chanend toQuadrant[], out por
 			}
 
 			if(stop) {
-				//printf("Stop.\n");
 				running = false;
 				continue;
 			}
@@ -288,12 +286,9 @@ void visualiser(chanend toButtons, chanend show[], chanend toQuadrant[], out por
 
 		// Let particles know that simulation has started
 		if(!started && input == RUNNING) {
-			//printf("Going to start\n");
 			started = true;
 			for(int i = 0; i < noParticles; i++) {
-				//printf("Got send start to : %d\n", i);
 				show[i] <: RUNNING;
-				//printf("Sent running...\n");
 			}
 			continue;
 		}
@@ -304,7 +299,6 @@ void visualiser(chanend toButtons, chanend show[], chanend toQuadrant[], out por
 			{
 				select {
 					case show[k] :> j: {
-						//printf("Someone wants sth: %d\n",j);
 
 						// Got a position to display
 						if (j < 12 && j >= 0) {
@@ -325,6 +319,7 @@ void visualiser(chanend toButtons, chanend show[], chanend toQuadrant[], out por
 									if(input == TERMINATED) {
 										show[i] <: TERMINATED;
 									} else {
+										//play sound on collision
 										show[i] <: COLLISION;
 										playSound(200000, 5, speaker);
 									}
@@ -336,7 +331,6 @@ void visualiser(chanend toButtons, chanend show[], chanend toQuadrant[], out por
 								display[k] = requestedPosition;
 							}
 							if(input != TERMINATED){
-								//printf("Sending result back\n");
 								show[k] <: result;
 							}else {
 								show[k] <: TERMINATED;
@@ -351,8 +345,6 @@ void visualiser(chanend toButtons, chanend show[], chanend toQuadrant[], out por
 			}
 
 		}
-
-
 
 		// Tell status of game by color of leds
 		cledG <: input == PAUSED || input == NOTSTARTED;
@@ -374,24 +366,11 @@ void visualiser(chanend toButtons, chanend show[], chanend toQuadrant[], out por
 			toQuadrant[i] <: j;
 		}
 
-//		for (int k=0;k<noParticles;k++) {
-//			running = true;
-//			if(display[k] == TERMINATED)
-//				running = false;
-//		}
 		if(input == TERMINATED)
 		{
 			running = false;
 		}
 	}
-
-
-	//printf("Going to kill visualiser\n");
-
-//	for (int k=0;k<noParticles;k++) {
-//		show[k] :> j;
-//		show[k] <: TERMINATED;
-//	}
 
 	for (int k=0; k<= maxCoreNo; k++)
 		toQuadrant[k] <: TERMINATED;
@@ -413,6 +392,7 @@ void buttonListener(in port buttons, chanend toVisualiser) {
 	int simulationPaused = false;
 
 	int prevInput;
+
 	//helper variable to determine system shutdown
 	unsigned int running = 1;
 
@@ -423,9 +403,9 @@ void buttonListener(in port buttons, chanend toVisualiser) {
 		if(prevInput == buttonInput)
 			continue;
 
-		/////////////////////////////////////////////////////////////////////// //
+		//////////////////////////////////////////////////////////////////////////
 		// ADD YOUR CODE HERE TO ACT ON BUTTON INPUT
-		// ///////////////////////////////////////////////////////////////////////
+		//////////////////////////////////////////////////////////////////////////
 
 		switch(buttonInput){
 			case buttonA:
@@ -548,19 +528,16 @@ void particle(chanend left, chanend right, chanend toVisualiser, int startPositi
 		select {
 			case toVisualiser :> info:
 				if(info == RUNNING) {
-					//printf("Got running from vis.\n");
 					started = true;
 					status = RUNNING;
 					break;
 				} else if(info == TERMINATED) {
-					//printf("Got term from vis.\n");
 					started = true;
 					running = false;
 					break;
 				}
 				else if((info & 0xFF) == 33) {
 					position = (info >> 8);
-					printf("My pos is now: %d\n", position);
 					break;
 				}
 			break;
@@ -572,7 +549,6 @@ void particle(chanend left, chanend right, chanend toVisualiser, int startPositi
 
 	if(isMaster)
 	{
-		//printf("I am a master!\n");
 		right <: status;
 	}
 
@@ -581,11 +557,9 @@ void particle(chanend left, chanend right, chanend toVisualiser, int startPositi
 		int waitForUpdate = true;
 
 		// Pass status to the left
-		//printf("%d Wait left\n", startPosition);
 		while(waitForUpdate) {
 			select {
 				case right :> status:
-					//printf("Got terminated\n");
 					waitForUpdate = false;
 					if(kills == false) {
 						// not a killer, pass it
@@ -594,19 +568,15 @@ void particle(chanend left, chanend right, chanend toVisualiser, int startPositi
 					running = false;
 					break;
 				case left :> status:
-					//printf("%d gOT FROM LEFT left %d\n", startPosition, status);
 					waitForUpdate = false;
 					break;
 				case toVisualiser :> status:
-
-					//printf("%d got some update! %d\n", startPosition, status);
 
 					if(status == COLLISION) {
 						toggleDirection(currentDirection);
 					}
 
 					if(status == TERMINATED) {
-						//printf("Got terminated\n");
 						waitForUpdate = false;
 					}
 
@@ -617,11 +587,8 @@ void particle(chanend left, chanend right, chanend toVisualiser, int startPositi
 		if(!running)
 			continue;
 
-		//printf("%d status %d\n", startPosition, status);
-
 		// Report position unless terminating
 		if(status != TERMINATED) {
-			//printf("%d Going to get synced\n", startPosition);
 			toVisualiser <: position;
 		}
 
@@ -629,7 +596,6 @@ void particle(chanend left, chanend right, chanend toVisualiser, int startPositi
 		// Receive status
 			select {
 				case toVisualiser :> status:
-					//printf("%d Got synced\n", startPosition);
 					break;
 			}
 		}
@@ -637,7 +603,6 @@ void particle(chanend left, chanend right, chanend toVisualiser, int startPositi
 		if(status == TERMINATED) {
 			// Do nothing...
 		} else if(status == COLLISION) {
-			////printf("%d I guess i need to bumpt\n", startPosition);
 			toggleDirection(currentDirection);
 
 		} else if(status == RUNNING) {
@@ -647,8 +612,6 @@ void particle(chanend left, chanend right, chanend toVisualiser, int startPositi
 			} else {
 				skip = startVelocity;
 
-				//printf("%d I am free to go!\n", startPosition);
-
 				attemptedPosition = getAttemptedPosition(currentDirection, position);
 
 				toVisualiser <: (attemptedPosition + 1000);
@@ -657,17 +620,15 @@ void particle(chanend left, chanend right, chanend toVisualiser, int startPositi
 
 				if(rightMoveForbidden == TERMINATED) {
 					status = TERMINATED;
-					//printf("Got terminated\n");
 				}
 				else if(rightMoveForbidden == allowed)
 					position = attemptedPosition;
 				else
 				{
 					if(currentDirection == CLKWISE) {
-						//int newStatus = ((status << 2) & COLLISION);
-						//printf("%d One to me left should change dir\n", startPosition);
+
 					} else  {
-						//printf("%d One to me right should change dir\n", startPosition);
+
 					}
 					toggleDirection(currentDirection);
 				}
@@ -679,7 +640,6 @@ void particle(chanend left, chanend right, chanend toVisualiser, int startPositi
 
 
 		// Read status from right
-		//printf("%d Send right\n", startPosition);
 		if(status == TERMINATED)
 		{
 			kills = true;
@@ -687,10 +647,8 @@ void particle(chanend left, chanend right, chanend toVisualiser, int startPositi
 			continue;
 		}
 
-		//printf("I am %d, sending to right: %d\n",  startPosition, status);
 		right <: status;
 	}
-	//printf("%d Particle terminates...\n", startPosition);
 }
 
 //MAIN PROCESS defining channels, orchestrating and starting the threads
@@ -718,11 +676,6 @@ int main(void) {
 			on stdcore[i % maxCoreNo] : particle(neighbours[ (i - 1 + noParticles)%noParticles], neighbours[i%noParticles],
 					show[i], startPositions[i], startDirections[i], speed[i]);
 		}
-
-//		on stdcore[0] : particle(neighbours[3], neighbours[0], show[0], startPositions[0], startDirections[0], speed[0]);
-//		on stdcore[1] : particle(neighbours[0], neighbours[1], show[1], startPositions[1], startDirections[1], speed[1]);
-//		on stdcore[2] : particle(neighbours[1], neighbours[2], show[2], startPositions[2], startDirections[2], speed[2]);
-//		on stdcore[3] : particle(neighbours[2], neighbours[3], show[3], startPositions[3], startDirections[3], speed[3]);
 
 		//VISUALISER THREAD
 		on stdcore[0]: visualiser(buttonToVisualiser, show, quadrant, speaker);
