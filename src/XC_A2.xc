@@ -12,6 +12,7 @@ out port cledG = PORT_CLOCKLED_SELG;
 out port cledR = PORT_CLOCKLED_SELR;
 in port buttons = PORT_BUTTON;
 out port speaker = PORT_SPEAKER;
+out port buttonLed = PORT_BUTTONLED;
 
 //overall number of particles threads in the system
 #define noParticles 4
@@ -326,7 +327,6 @@ void buttonListener(in port buttons, chanend toVisualiser) {
 					//START SIMULATION
 					simulationStarted = true;
 					toVisualiser <: RUNNING;
-					waitMoment(BUTTONDELAY);
 				}
 				break;
 			case buttonB:
@@ -339,27 +339,27 @@ void buttonListener(in port buttons, chanend toVisualiser) {
 						simulationPaused = true;
 						toVisualiser <: PAUSED;
 					}
-					waitMoment(BUTTONDELAY);
 				}
 				break;
 			case buttonC:
 				//HALT
 				simulationStarted = false;
+				simulationPaused = false;
 				toVisualiser <: TERMINATED;
-				waitMoment(BUTTONDELAY);
 				running = false;
 				break;
 			case buttonD:
-				if(simulationStarted)
-					waitMoment(BUTTONDELAY);
+				if(simulationStarted) {}
 					//Thing
-				else
-					waitMoment(BUTTONDELAY);
+				else {}
 					//BEFORE START - NUMBER OF PARTICLES
 				break;
 			default:
 				break;
 		}
+
+		buttonLed <: (1 * simulationStarted) + (2 * simulationPaused);
+		waitMoment(BUTTONDELAY);
 
 		prevInput = buttonInput;
 	}
