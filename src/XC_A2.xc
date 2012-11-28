@@ -65,7 +65,7 @@ enum {
 #define MAXPARTICLESPEED 275000
 
 // Delay buttons so you can click on them a bit 'slower'
-#define BUTTONDELAY 32000000
+#define BUTTONDELAY 3200000
 
 // Define bool, true and false
 //typedef unsigned int bool;
@@ -560,6 +560,7 @@ void particle(chanend left, chanend right, chanend toVisualiser, int startPositi
 				}
 				else if((info & 0xFF) == 33) {
 					position = (info >> 8);
+					printf("My pos is now: %d\n", position);
 					break;
 				}
 			break;
